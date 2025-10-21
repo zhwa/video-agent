@@ -1,0 +1,14 @@
+# Basic dependencies for Milestone 1 (ingest + segmentation + tests)
+PyYAML>=6.0
+pytest>=7.0
+
+# Optional / recommended (used by the code if available):
+PyMuPDF>=1.26.5
+pdfplumber>=0.11.7
+moviepy>=2.0.0
+
+# LangGraph is optional for later milestones:
+langgraph>=1.0.1
+
+# Embedding & vector DB clients used later (optional):
+# qdrant-client, pinecone-client

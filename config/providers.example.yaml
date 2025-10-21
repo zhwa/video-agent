@@ -1,0 +1,34 @@
+# Example provider priorities and fallbacks
+# Edit this file to select preferred providers and region priorities.
+
+region_priority:
+  - global
+  - cn
+
+llm:
+  - name: google_vertex_ai
+  - name: openai
+
+embeddings:
+  - name: vertex_embeddings
+  - name: sentence_transformers
+
+ocr:
+  - name: google_vision
+  - name: tesseract
+
+tts:
+  - name: google_cloud_tts
+  - name: elevenlabs
+
+image_generation:
+  - name: stability
+  - name: replicate
+
+vector_db:
+  - name: pinecone
+  - name: qdrant
+
+storage:
+  - name: gcs
+  - name: minio
