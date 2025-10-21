@@ -4,13 +4,39 @@ import os
 from abc import ABC, abstractmethod
 from typing import Optional
 
+from ..cache import FileCache, compute_cache_key
+
 
 class ImageAdapter(ABC):
-    """Abstract interface for image generation adapters."""
+    """Abstract interface for image generation adapters.
+    
+    All image adapters should support caching via the cache parameter.
+    """
 
     @abstractmethod
-    def generate_image(self, prompt: str, out_path: Optional[str] = None, width: int = 512, height: int = 512, steps: int = 20, seed: Optional[int] = None) -> str:
-        """Synthesize an image for the given prompt and return a local file path."""
+    def generate_image(
+        self,
+        prompt: str,
+        out_path: Optional[str] = None,
+        width: int = 512,
+        height: int = 512,
+        steps: int = 20,
+        seed: Optional[int] = None,
+    ) -> str:
+        """Generate an image from a text prompt.
+        
+        Args:
+            prompt: Text description of the image to generate
+            out_path: Output file path (default: auto-generated)
+            width: Image width in pixels
+            height: Image height in pixels
+            steps: Number of generation steps (quality vs speed)
+            seed: Random seed for reproducibility (optional)
+            
+        Returns:
+            Path to generated image file
+        """
+        raise NotImplementedError()
 
 
 class DummyImageAdapter(ImageAdapter):

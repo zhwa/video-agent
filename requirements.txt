@@ -10,5 +10,17 @@ moviepy>=2.0.0
 # LangGraph is optional for later milestones:
 langgraph>=1.0.1
 
+# Storage adapters (optional):
+# google-cloud-storage>=2.10.0  # For GCS adapter
+# minio>=7.1.0  # For MinIO/S3 adapter
+
+# TTS adapters (optional):
+# google-cloud-texttospeech>=2.14.0  # For Google Cloud TTS
+# elevenlabs>=0.2.0  # For ElevenLabs TTS
+
+# Image generation adapters (optional):
+# stability-sdk>=0.8.0  # For Stability.ai (Stable Diffusion)
+# replicate>=0.15.0  # For Replicate
+
 # Embedding & vector DB clients used later (optional):
 # qdrant-client, pinecone-client
