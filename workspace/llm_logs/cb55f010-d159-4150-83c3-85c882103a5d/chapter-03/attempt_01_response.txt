@@ -1,0 +1,17 @@
+{
+  "slides": [
+    {
+      "id": "s01",
+      "title": "Supervised learning is the most common type of machine learn",
+      "bullets": [
+        "Supervised learning is the most common type of machine learning.",
+        "In this approach, the algorithm learns from labeled training data.",
+        "The model is trained on a dataset where the correct answers are already known.",
+        "Common applications of supervised learning include email spam detection, image classification, and prediction of house prices."
+      ],
+      "visual_prompt": "illustration for: Supervised learning is the most common type of machine learn",
+      "estimated_duration_sec": 83,
+      "speaker_notes": "Supervised learning is the most common type of machine learning. In this approach, the algorithm learns from labeled training data. The model is trained on a dataset where the correct answers are already known. Common applications of supervised learning include email spam detection, image classification, and prediction of house prices. The algorithm learns to map inputs to outputs based on example input-output pairs."
+    }
+  ]
+}

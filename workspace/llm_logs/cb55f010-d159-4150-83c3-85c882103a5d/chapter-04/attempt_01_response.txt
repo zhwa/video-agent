@@ -1,0 +1,17 @@
+{
+  "slides": [
+    {
+      "id": "s01",
+      "title": "Unsupervised learning works with unlabeled data.",
+      "bullets": [
+        "Unsupervised learning works with unlabeled data.",
+        "The algorithm tries to find hidden patterns or intrinsic structures in the input data without any pre-existing labels.",
+        "Clustering and dimensionality reduction are common unsupervised learning tasks.",
+        "These techniques are useful for customer segmentation, anomaly detection, and data compression."
+      ],
+      "visual_prompt": "illustration for: Unsupervised learning works with unlabeled data.",
+      "estimated_duration_sec": 68,
+      "speaker_notes": "Unsupervised learning works with unlabeled data. The algorithm tries to find hidden patterns or intrinsic structures in the input data without any pre-existing labels. Clustering and dimensionality reduction are common unsupervised learning tasks. These techniques are useful for customer segmentation, anomaly detection, and data compression."
+    }
+  ]
+}

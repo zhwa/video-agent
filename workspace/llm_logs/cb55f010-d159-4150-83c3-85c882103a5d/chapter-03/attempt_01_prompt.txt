@@ -1,0 +1,24 @@
+Return a JSON object with a single key "slides" whose value is a list of slide objects.
+Each slide object must contain the following keys and types:
+- id: string (unique per slide)
+- title: string (short title for the slide)
+- bullets: array of short strings (bullet points)
+- visual_prompt: string (a prompt to generate an illustration or image for the slide)
+- estimated_duration_sec: integer (estimated speaking time in seconds)
+- speaker_notes: string (detailed speaker notes / script)
+
+Return ONLY valid JSON. Do not include any explanatory text, markdown, or commentary.
+
+Schema summary:
+id, title, bullets, visual_prompt, estimated_duration_sec, speaker_notes
+
+Max slides: 6
+
+Chapter text follows (generate slides that cover the key points from the chapter):
+-----
+Supervised learning is the most common type of machine learning. In this approach, the algorithm learns from labeled training data. The model is trained on a dataset where the correct answers are already known.
+
+Common applications of supervised learning include email spam detection, image classification, and prediction of house prices. The algorithm learns to map inputs to outputs based on example input-output pairs.
+-----
+
+Produce JSON now.

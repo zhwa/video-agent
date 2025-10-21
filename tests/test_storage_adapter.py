@@ -1,6 +1,6 @@
 import os
 import tempfile
-from agent.storage import DummyStorageAdapter
+from agent.storage.dummy_storage import DummyStorageAdapter
 
 
 def test_dummy_storage_upload_download(tmp_path):

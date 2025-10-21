@@ -16,6 +16,8 @@ class DummyStorageAdapter(StorageAdapter):
         # Copy the file into base_dir and return file:// URL
         dest = dest_path or os.path.basename(local_path)
         full = os.path.join(self.base_dir, dest)
+        # Create parent directories if they don't exist
+        os.makedirs(os.path.dirname(full), exist_ok=True)
         shutil.copy(local_path, full)
         return f"file://{os.path.abspath(full)}"
 

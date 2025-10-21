@@ -29,32 +29,33 @@ def test_parallel_generation_respects_max_workers(monkeypatch):
     # Build a fake document with 6 small chapters
     chapters = []
     for i in range(6):
-        chapters.append({"id": f"chapter-{i+1:02d}", "title": f"C{i+1}", "text": "One. Two."})
-
-    desc = {"nodes": [{"id": "ingest", "type": "ingest", "config": {"path": "dummy"}}, {"id": "segment", "type": "segment", "config": {}}, {"id": "script_gen", "type": "script_generator", "config": {"adapter": "dummy"}}], "edges": [("ingest", "segment"), ("segment", "script_gen")]}  # noqa: E501
+        chapters.append({
+            "id": f"chapter-{i+1:02d}",
+            "title": f"C{i+1}",
+            "text": "One. Two."
+        })
 
     # Monkeypatch segmenter outputs by monkeypatching read_file and segmentation functions
     def fake_read_file(path):
         return {"type": "markdown", "text": "dummy"}
 
-    def fake_segment_text_into_chapters(text):
-        return chapters
+    # Apply monkeypatch BEFORE building the description
+    import agent.langgraph_nodes as ln_mod
+    monkeypatch.setattr(ln_mod, "read_file", fake_read_file)
+    monkeypatch.setattr(ln_mod, "segment_text_into_chapters", lambda t: chapters)
 
-    from agent import io as io_mod
-    from agent import segmenter as seg_mod
-
-    monkeypatch.setattr(io_mod, "read_file", fake_read_file)
-    monkeypatch.setattr(seg_mod, "segment_text_into_chapters", lambda t: chapters)
+    desc = build_graph_description("dummy")
 
     counter = {"val": 0, "max": 0, "lock": threading.Lock()}
     adapter = SlowDummyAdapter(sleep_time=0.2, concurrency_counter=counter)
 
     # Configure env to use 3 workers
     import os
-
     os.environ["MAX_WORKERS"] = "3"
+    
     # Run
     result = run_graph_description(desc, llm_adapter=adapter)
+    
     # Assert concurrency observed <= 3
     assert counter["max"] <= 3
     # Also verify we produced script_gen results for all chapters

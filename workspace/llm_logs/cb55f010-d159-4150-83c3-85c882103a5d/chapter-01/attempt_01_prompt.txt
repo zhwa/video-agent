@@ -1,0 +1,22 @@
+Return a JSON object with a single key "slides" whose value is a list of slide objects.
+Each slide object must contain the following keys and types:
+- id: string (unique per slide)
+- title: string (short title for the slide)
+- bullets: array of short strings (bullet points)
+- visual_prompt: string (a prompt to generate an illustration or image for the slide)
+- estimated_duration_sec: integer (estimated speaking time in seconds)
+- speaker_notes: string (detailed speaker notes / script)
+
+Return ONLY valid JSON. Do not include any explanatory text, markdown, or commentary.
+
+Schema summary:
+id, title, bullets, visual_prompt, estimated_duration_sec, speaker_notes
+
+Max slides: 6
+
+Chapter text follows (generate slides that cover the key points from the chapter):
+-----
+Machine learning is a subset of artificial intelligence that focuses on building systems that can learn from data. Instead of being explicitly programmed, these systems improve their performance through experience.
+-----
+
+Produce JSON now.
