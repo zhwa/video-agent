@@ -1,15 +1,20 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import time
 from typing import Any, Callable, Dict, List, Optional
 
 from .adapters.schema import validate_slide_plan
+from .adapters.json_utils import extract_json_from_text
 from .prompts import build_prompt
 from .adapters.llm import LLMAdapter
 from .telemetry import record_timing, increment
+from .log_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class LLMClient:
@@ -23,9 +28,12 @@ class LLMClient:
             try:
                 # lazy import to avoid circulars when storage module missing
                 from .storage import get_storage_adapter
-
                 self.storage_adapter = get_storage_adapter()
-            except Exception:
+            except ImportError as e:
+                logger.debug("Storage adapter not available: %s", e)
+                self.storage_adapter = None
+            except Exception as e:
+                logger.warning("Failed to initialize storage adapter: %s", e)
                 self.storage_adapter = None
 
         # If there is a storage adapter but no explicit out_dir, create a
@@ -71,37 +79,26 @@ class LLMClient:
                 # Record artifact in run metadata (best-effort)
                 try:
                     from .runs import add_run_artifact
-
                     add_run_artifact(run_id, "llm_attempt", url, metadata={"file": fname})
-                except Exception:
-                    pass
+                except ImportError:
+                    logger.debug("add_run_artifact not available")
+                except Exception as e:
+                    logger.debug("Failed to add run artifact: %s", e)
                 # Optionally remove the local attempt after successful upload
                 if remove_local:
                     try:
                         os.remove(full)
-                    except Exception:
-                        pass
-            except Exception:
-                # best-effort: don't fail the whole run if storage fails
-                pass
+                        logger.debug("Removed archived local attempt: %s", full)
+                    except OSError as e:
+                        logger.warning("Failed to remove archived attempt: %s", e)
+            except OSError as e:
+                logger.warning("Failed to upload attempt to storage: %s", e)
+            except Exception as e:
+                logger.warning("Unexpected error archiving attempts: %s", e)
 
     def _parse_json(self, text: Any) -> Optional[Dict[str, Any]]:
-        if isinstance(text, dict):
-            return text
-        if not isinstance(text, str):
-            return None
-        # try straight parse
-        try:
-            return json.loads(text)
-        except Exception:
-            # extract first JSON object
-            m = re.search(r"\{.*\}", text, flags=re.DOTALL)
-            if not m:
-                return None
-            try:
-                return json.loads(m.group(0))
-            except Exception:
-                return None
+        """Parse JSON from text using the shared utility."""
+        return extract_json_from_text(text)
 
     def generate_and_validate(self, adapter: LLMAdapter, chapter_text: str, max_slides: Optional[int] = None, run_id: Optional[str] = None, chapter_id: Optional[str] = None) -> Dict[str, Any]:
         """Generate slide plan using adapter and validate; attempts repairs when invalid.
@@ -122,7 +119,11 @@ class LLMClient:
                 else:
                     # fallback to generate_slide_plan which takes chapter_text
                     raw = adapter.generate_slide_plan(chapter_text, max_slides=max_slides)
+            except ValueError as e:
+                logger.error("Validation error from LLM adapter: %s", e)
+                raw = {"error": str(e)}
             except Exception as e:
+                logger.error("Error calling LLM adapter on attempt %d: %s", attempt, e)
                 raw = {"error": str(e)}
 
             parsed = self._parse_json(raw)
@@ -142,22 +143,25 @@ class LLMClient:
             try:
                 increment("llm_attempts")
                 record_timing("llm_attempt_duration_sec", elapsed)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to record telemetry: %s", e)
 
             if ok and parsed:
+                logger.info("LLM validation passed on attempt %d", attempt)
                 # Archive attempts (best-effort) if storage adapter configured
                 try:
                     self.archive_attempts_to_storage(run_id or "run", chapter_id or "chapter")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Failed to archive attempts: %s", e)
                 # telemetry: mark success
                 try:
                     increment("llm_success")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Failed to record success telemetry: %s", e)
                 return {"plan": parsed, "attempts": attempts_info}
 
+            logger.debug("LLM validation failed on attempt %d with errors: %s", attempt, errors)
+            
             # Prepare repair prompt
             repair_prompt = (
                 "The previous response did not pass validation. The validation errors are: "
@@ -173,22 +177,25 @@ class LLMClient:
             time.sleep(0.5)
 
         # After retries, fallback to a deterministic local adapter to avoid recursive calls
+        logger.warning("All %d retry attempts failed, using fallback adapter", self.max_retries)
         try:
             # Use the local DummyLLMAdapter as a safe deterministic fallback
             from .adapters.llm import DummyLLMAdapter
-
             fallback = DummyLLMAdapter().generate_slide_plan(chapter_text, max_slides=max_slides)
-        except Exception:
+            logger.info("Fallback adapter generated slide plan")
+        except Exception as e:
+            logger.error("Fallback adapter also failed: %s", e)
             fallback = {"slides": []}
 
         parsed_fallback = self._parse_json(fallback) or fallback
         try:
             self.archive_attempts_to_storage(run_id or "run", chapter_id or "chapter")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to archive attempts on fallback: %s", e)
+        
         # telemetry: mark fallback used
         try:
             increment("llm_fallbacks")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to record fallback telemetry: %s", e)
         return {"plan": parsed_fallback, "attempts": attempts_info, "fallback_used": True}

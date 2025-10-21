@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 
 def runs_dir() -> Path:
@@ -55,15 +58,23 @@ def add_run_artifact(run_id: str, artifact_type: str, url: str, metadata: Option
 
 
 def save_checkpoint(run_id: str, node: str, data: Dict) -> None:
-    d = ensure_run_dir(run_id)
-    chk_file = d / "checkpoint.json"
-    if chk_file.exists():
-        current = json.loads(chk_file.read_text(encoding="utf-8"))
-    else:
-        current = {}
-    current[node] = data
-    current.setdefault("completed", {})[node] = datetime.utcnow().isoformat()
-    chk_file.write_text(json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
+    """Save checkpoint with atomic write (thread-safe)."""
+    try:
+        # Use atomic save from runs_safe module for thread-safety
+        from .runs_safe import save_checkpoint_atomic
+        save_checkpoint_atomic(run_id, node, data)
+    except Exception as e:
+        logger.warning("Thread-safe checkpoint save failed, falling back to standard save: %s", e)
+        # Fallback to non-atomic save for compatibility
+        d = ensure_run_dir(run_id)
+        chk_file = d / "checkpoint.json"
+        if chk_file.exists():
+            current = json.loads(chk_file.read_text(encoding="utf-8"))
+        else:
+            current = {}
+        current[node] = data
+        current.setdefault("completed", {})[node] = datetime.utcnow().isoformat()
+        chk_file.write_text(json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def load_checkpoint(run_id: str) -> Dict:

@@ -43,25 +43,34 @@ def test_telemetry_records_video_compose(tmp_path, monkeypatch):
     # Inject a fake moviepy.editor module so the composer runs without heavy deps
     import sys
 
+    class FakeImageClip:
+        def __init__(self, path):
+            pass
+
+        def with_duration(self, duration):
+            return self
+
+        def set_duration(self, duration):
+            return self
+
+    class FakeAudioFileClip:
+        def __init__(self, path):
+            self.duration = 0.2
+
     class FakeEditor:
-        class ImageClip:
-            def __init__(self, path):
-                pass
-
-            def set_duration(self, duration):
-                return self
-
-        class AudioFileClip:
-            def __init__(self, path):
-                self.duration = 0.2
+        ImageClip = FakeImageClip
+        AudioFileClip = FakeAudioFileClip
 
         @staticmethod
         def concatenate_videoclips(clips, method=None):
             class Video:
+                def with_audio(self, audio):
+                    return self
+
                 def set_audio(self, audio):
                     return self
 
-                def write_videofile(self, out_path, fps, verbose, logger):
+                def write_videofile(self, out_path, fps=None, verbose=None, logger=None):
                     with open(out_path, "wb") as f:
                         f.write(b"MP4")
 
@@ -80,3 +89,4 @@ def test_telemetry_records_video_compose(tmp_path, monkeypatch):
     out = composer.compose_chapter(slides, str(tmp_path / "out.mp4"))
     t = coll.get_timings()
     assert "video_compose_chapter_sec" in t
+

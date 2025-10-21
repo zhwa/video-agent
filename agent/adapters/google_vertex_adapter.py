@@ -6,6 +6,7 @@ import re
 from typing import Dict, Any
 
 from .llm import LLMAdapter, DummyLLMAdapter
+from .json_utils import extract_json_from_text
 
 
 class VertexLLMAdapter(LLMAdapter):
@@ -21,20 +22,6 @@ class VertexLLMAdapter(LLMAdapter):
         self.model = model or os.getenv("VERTEX_MODEL") or "text-bison"
         self.project = project or os.getenv("GCP_PROJECT")
         self.location = location or os.getenv("GCP_LOCATION") or "us-central1"
-
-    def _extract_json_from_text(self, text: str) -> Any:
-        # same helper as OpenAIAdapter-like naive extraction
-        try:
-            return json.loads(text)
-        except Exception:
-            pass
-        m = re.search(r"\{.*\}", text, flags=re.DOTALL)
-        if m:
-            try:
-                return json.loads(m.group(0))
-            except Exception:
-                pass
-        return None
 
     def generate_slide_plan(self, chapter_text: str, max_slides: int | None = None, run_id: str | None = None, chapter_id: str | None = None) -> Dict[str, Any]:
         # Delegate to LLMClient to get retries, repair, validation and logging

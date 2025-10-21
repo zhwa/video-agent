@@ -202,33 +202,10 @@ def run_graph_description(desc: Dict[str, Any], llm_adapter=None, resume_run_id:
         save_checkpoint(run_id, "script_gen", script_results)
     except Exception:
         pass
-    # Embeddings: index chapter chunks into vector DB (skip if already done)
-    try:
-        if checkpoint.get("vector_db"):
-            results["vector_db"] = checkpoint.get("vector_db")
-        else:
-            emb_adapter = get_embeddings_adapter()
-            vecdb = get_vector_db_adapter()
-            # Simple chunker: split chapter text into 1024-char chunks
-            for chap in chapters:
-                text = chap.get("text", "")
-                chunks = [text[i : i + 1024] for i in range(0, len(text), 1024)]
-                if not chunks:
-                    continue
-                embeddings = emb_adapter.embed_texts(chunks)
-                for i, vec in enumerate(embeddings):
-                    id = f"{chap.get('id')}_chunk_{i}"
-                    vecdb.upsert(id, vec, metadata={"chapter_id": chap.get('id'), "chunk_index": i})
-            results["vector_db"] = {"indexed_chapters": len(chapters)}
-            try:
-                from .runs import save_checkpoint
-
-                save_checkpoint(run_id, "vector_db", results["vector_db"])
-            except Exception:
-                pass
-    except Exception:
-        # best-effort: continue if embedding/indexing not available
-        pass
+    # Vector DB indexing disabled for MVP (planned for future retrieval-augmented generation)
+    # TODO: Re-enable vector DB indexing when RAG features are implemented
+    # This would index chapters into embeddings for semantic search support.
+    
     # Expose which adapter was used (for debugging and audit)
     try:
         results["llm_adapter_used"] = adapter.__class__.__name__

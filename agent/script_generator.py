@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import logging
+import os
+import time
+import uuid
 from typing import Dict, Any, List
 
 from .adapters.llm import LLMAdapter
 from .adapters import get_tts_adapter, get_image_adapter
 from .storage import get_storage_adapter
 from .parallel import run_tasks_in_threads
-import os
-import uuid
 from .telemetry import record_timing, increment
-import time
+from .log_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def generate_slides_for_chapter(
@@ -46,70 +50,86 @@ def generate_slides_for_chapter(
         # Generate audio if TTS enabled
         if tts_provider:
             st = time.time()
-            tts = get_tts_adapter(tts_provider)
-            text = slide.get("speaker_notes") or ""
-            out_dir = os.getenv("LLM_OUT_DIR") or "workspace/out"
-            os.makedirs(out_dir, exist_ok=True)
-            filename = f"{run_id or 'run'}_{chapter.get('id')}_{slide.get('slide_id')}.mp3"
-            local_path = os.path.join(out_dir, filename)
-            audio_path = tts.synthesize(text, out_path=local_path)
-            if storage:
-                try:
-                    url = storage.upload_file(audio_path, dest_path=f"tts/{filename}")
-                    slide["audio_url"] = url
-                except Exception:
+            try:
+                tts = get_tts_adapter(tts_provider)
+                text = slide.get("speaker_notes") or ""
+                out_dir = os.getenv("LLM_OUT_DIR") or "workspace/out"
+                os.makedirs(out_dir, exist_ok=True)
+                filename = f"{run_id or 'run'}_{chapter.get('id')}_{slide.get('slide_id')}.mp3"
+                local_path = os.path.join(out_dir, filename)
+                audio_path = tts.synthesize(text, out_path=local_path)
+                if storage:
+                    try:
+                        url = storage.upload_file(audio_path, dest_path=f"tts/{filename}")
+                        slide["audio_url"] = url
+                        logger.debug("Uploaded audio to: %s", url)
+                    except OSError as e:
+                        logger.warning("Failed to upload audio, using local path: %s", e)
+                        slide["audio_url"] = audio_path
+                else:
                     slide["audio_url"] = audio_path
-            else:
-                slide["audio_url"] = audio_path
-            record_timing("tts_generation_sec", time.time() - st)
+            except Exception as e:
+                logger.error("Failed to synthesize audio for slide %s: %s", slide.get('slide_id'), e)
+                raise
+            finally:
+                record_timing("tts_generation_sec", time.time() - st)
 
         # Generate image if image provider configured
         if image_provider:
             st_img = time.time()
-            image_adapter = get_image_adapter(image_provider)
-            prompt = slide.get("visual_prompt") or slide.get("title") or "visual"
-            out_dir = os.getenv("LLM_OUT_DIR") or "workspace/out"
-            os.makedirs(out_dir, exist_ok=True)
-            filename = f"{run_id or 'run'}_{chapter.get('id')}_{slide.get('slide_id')}.png"
-            local_path = os.path.join(out_dir, filename)
-            image_path = image_adapter.generate_image(prompt, out_path=local_path)
-            if storage:
-                try:
-                    url = storage.upload_file(image_path, dest_path=f"images/{filename}")
-                    slide["image_url"] = url
-                except Exception:
+            try:
+                image_adapter = get_image_adapter(image_provider)
+                prompt = slide.get("visual_prompt") or slide.get("title") or "visual"
+                out_dir = os.getenv("LLM_OUT_DIR") or "workspace/out"
+                os.makedirs(out_dir, exist_ok=True)
+                filename = f"{run_id or 'run'}_{chapter.get('id')}_{slide.get('slide_id')}.png"
+                local_path = os.path.join(out_dir, filename)
+                image_path = image_adapter.generate_image(prompt, out_path=local_path)
+                if storage:
+                    try:
+                        url = storage.upload_file(image_path, dest_path=f"images/{filename}")
+                        slide["image_url"] = url
+                        logger.debug("Uploaded image to: %s", url)
+                    except OSError as e:
+                        logger.warning("Failed to upload image, using local path: %s", e)
+                        slide["image_url"] = image_path
+                else:
                     slide["image_url"] = image_path
-            else:
-                slide["image_url"] = image_path
-            record_timing("image_generation_sec", time.time() - st_img)
+            except Exception as e:
+                logger.error("Failed to generate image for slide %s: %s", slide.get('slide_id'), e)
+                raise
+            finally:
+                record_timing("image_generation_sec", time.time() - st_img)
         return slide
 
     # If either provider is enabled, process slides (possibly in parallel)
     if tts_provider or image_provider:
         try:
             max_workers = int(os.getenv("MAX_SLIDE_WORKERS", "1"))
-        except Exception:
+        except (ValueError, TypeError):
+            logger.warning("Invalid MAX_SLIDE_WORKERS, using default of 1")
             max_workers = 1
         try:
             rate_limit = float(os.getenv("SLIDE_RATE_LIMIT", "0"))
             if rate_limit <= 0:
                 rate_limit = None
-        except Exception:
+        except (ValueError, TypeError):
+            logger.warning("Invalid SLIDE_RATE_LIMIT, using default of no limit")
             rate_limit = None
 
         if max_workers and max_workers > 1 and len(normalized) > 1:
+            logger.debug("Processing %d slides in parallel with %d workers", len(normalized), max_workers)
             tasks = []
             for s in normalized:
                 def make_task(sl):
                     def _t():
                         return _process_slide(sl)
-
                     return _t
-
                 tasks.append(make_task(s))
             results = run_tasks_in_threads(tasks, max_workers=max_workers, rate_limit=rate_limit)
             # results are processed in-place since slides are mutated
         else:
+            logger.debug("Processing %d slides sequentially", len(normalized))
             for slide in normalized:
                 _process_slide(slide)
     return {"chapter_id": chapter.get("id"), "slides": normalized}

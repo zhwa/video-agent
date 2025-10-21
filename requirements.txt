@@ -2,7 +2,7 @@
 PyYAML>=6.0
 pytest>=7.0
 
-# Optional / recommended (used by the code if available):
+# Core dependencies for video composition (MVP)
 PyMuPDF>=1.26.5
 pdfplumber>=0.11.7
 moviepy>=2.0.0

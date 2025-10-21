@@ -20,22 +20,71 @@ class TTSAdapter(ABC):
 
 
 class DummyTTSAdapter(TTSAdapter):
-    """Deterministic TTS adapter for testing and offline runs.
+    """Generate silent audio files matching the estimated text duration.
 
-    It writes the text to a .txt file and returns a file:// URL to this file
-    so callers can treat it analogously to real audio output in integration
-    tests.
+    Useful for tests and offline flows. Creates valid WAV files that can be
+    used by MoviePy and other audio tools. Duration is estimated based on
+    typical reading speed (~150 words per minute).
     """
 
     def synthesize(self, text: str, out_path: Optional[str] = None, voice: Optional[str] = None, language: Optional[str] = None) -> str:
-        import os
-
         out_path = out_path or "workspace/tts/dummy.wav"
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
-        # For the dummy adapter write a small text file to indicate content
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(text)
+        
+        # Estimate duration: ~150 words per minute = 4 seconds per 10 words
+        word_count = len(text.split())
+        duration_sec = max(5, (word_count / 150) * 60)
+        
+        # Generate a valid silent WAV file
+        wav_data = self._create_silent_wav(duration_sec, sample_rate=22050)
+        with open(out_path, "wb") as f:
+            f.write(wav_data)
         return out_path
+    
+    def _create_silent_wav(self, duration_sec: float, sample_rate: int = 22050) -> bytes:
+        """Create a valid WAV file containing silence (all zeros).
+        
+        WAV format: RIFF header + fmt subchunk + data subchunk
+        This produces files that MoviePy can read and use for timing.
+        """
+        import struct
+        
+        num_samples = int(duration_sec * sample_rate)
+        
+        # WAV header parts
+        channels = 1  # Mono
+        bits_per_sample = 16
+        byte_rate = sample_rate * channels * bits_per_sample // 8
+        block_align = channels * bits_per_sample // 8
+        
+        # RIFF header
+        riff_header = b'RIFF'
+        file_size = 36 + num_samples * channels * bits_per_sample // 8
+        riff_header += struct.pack('<I', file_size)
+        riff_header += b'WAVE'
+        
+        # fmt subchunk
+        fmt_subchunk = b'fmt '
+        fmt_size = 16  # Standard PCM format is 16 bytes
+        fmt_subchunk += struct.pack('<I', fmt_size)
+        fmt_subchunk += struct.pack('<HHIIHH', 
+            1,                  # Audio format (1 = PCM)
+            channels,           # Number of channels
+            sample_rate,        # Sample rate
+            byte_rate,          # Byte rate
+            block_align,        # Block align
+            bits_per_sample     # Bits per sample
+        )
+        
+        # data subchunk
+        data_subchunk = b'data'
+        data_size = num_samples * channels * bits_per_sample // 8
+        data_subchunk += struct.pack('<I', data_size)
+        
+        # Audio data (all zeros = silence)
+        audio_data = b'\x00\x00' * num_samples
+        
+        return riff_header + fmt_subchunk + data_subchunk + audio_data
 
 
 class GoogleTTSAdapter(TTSAdapter):

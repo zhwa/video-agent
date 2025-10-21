@@ -6,6 +6,7 @@ import re
 from typing import Dict, Any
 
 from .llm import LLMAdapter, DummyLLMAdapter
+from .json_utils import extract_json_from_text
 
 
 class OpenAIAdapter(LLMAdapter):
@@ -20,22 +21,6 @@ class OpenAIAdapter(LLMAdapter):
     def __init__(self, api_key: str | None = None, model: str | None = None):
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.model = model or os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
-
-    def _extract_json_from_text(self, text: str) -> Any:
-        # Try parse as-is
-        try:
-            return json.loads(text)
-        except Exception:
-            pass
-        # Try to extract first JSON object in the string
-        m = re.search(r"\{.*\}", text, flags=re.DOTALL)
-        if m:
-            candidate = m.group(0)
-            try:
-                return json.loads(candidate)
-            except Exception:
-                pass
-        return None
 
     def generate_slide_plan(self, chapter_text: str, max_slides: int | None = None, run_id: str | None = None, chapter_id: str | None = None) -> Dict[str, Any]:
         # Delegate to the centralized LLMClient for generation, retries, repair and validation

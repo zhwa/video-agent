@@ -106,7 +106,12 @@ class VideoComposer:
         Returns path to generated mp4
         """
         try:
-            from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
+            # Try moviepy.editor first (newer versions)
+            try:
+                from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
+            except ImportError:
+                # Fall back to direct imports (newer moviepy 2.x versions)
+                from moviepy import ImageClip, AudioFileClip, concatenate_videoclips
         except Exception:
             raise ImportError("moviepy is required for VideoComposer. Install with: pip install moviepy")
 
@@ -130,7 +135,7 @@ class VideoComposer:
                 audio_duration = audio_clip.duration
                 # prefer audio duration unless estimated is longer
                 duration = max(duration, audio_duration)
-            clip = ImageClip(image_path).set_duration(duration)
+            clip = ImageClip(image_path).with_duration(duration)
             clips.append(clip)
 
             # Load audio if exists (we'll concatenate later)
@@ -152,19 +157,24 @@ class VideoComposer:
         final_audio = None
         if audio_segments:
             try:
-                from moviepy.editor import concatenate_audioclips
+                # Try moviepy.editor first (newer versions)
+                try:
+                    from moviepy.editor import concatenate_audioclips
+                except ImportError:
+                    # Fall back to direct imports (newer moviepy 2.x versions)
+                    from moviepy import concatenate_audioclips
 
                 final_audio = concatenate_audioclips(audio_segments)
             except Exception:
                 final_audio = None
 
         if video and final_audio:
-            video = video.set_audio(final_audio)
+            video = video.with_audio(final_audio)
 
         # Write video
         if video:
             start = time.time()
-            video.write_videofile(out_path, fps=self.fps, verbose=False, logger=None)
+            video.write_videofile(out_path, fps=self.fps, logger=None)
             record_timing("video_compose_chapter_sec", time.time() - start)
 
         # Write subtitles
@@ -278,7 +288,12 @@ class VideoComposer:
         Returns local path or uploaded URL (if storage adapter used by caller)
         """
         try:
-            from moviepy.editor import VideoFileClip, concatenate_videoclips
+            # Try moviepy.editor first (newer versions)
+            try:
+                from moviepy.editor import VideoFileClip, concatenate_videoclips
+            except ImportError:
+                # Fall back to direct imports (newer moviepy 2.x versions)
+                from moviepy import VideoFileClip, concatenate_videoclips
         except Exception:
             raise ImportError("moviepy is required for merging videos. Install with: pip install moviepy")
 
@@ -316,7 +331,7 @@ class VideoComposer:
         final = concatenate_videoclips(processed, method="compose") if processed else None
         if final:
             start = time.time()
-            final.write_videofile(out_path, fps=self.fps, verbose=False, logger=None)
+            final.write_videofile(out_path, fps=self.fps, logger=None)
             record_timing("video_merge_sec", time.time() - start)
             # Close clips
             final.close()
