@@ -182,12 +182,6 @@ weeks)
 - Acceptance: agent run can resume after killing process and artifacts are
   retrievable.
 
-Milestone 6 — Optional avatar/advanced video generation & production hardening
-(2–4 weeks)
-- Integrate a paid avatar solution (Synthesia / Runway) or advanced text-to-video
-  models; add user-facing human-in-the-loop review step.
-- Add cost controls, quotas, per-run cost reporting.
-
 Testing matrix — basic tests to create now
 - `tests/test_config.py`: verify `config/providers.example.yaml` parses and
   contains expected top-level keys.

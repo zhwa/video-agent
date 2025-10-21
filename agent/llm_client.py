@@ -58,6 +58,7 @@ class LLMClient:
         base = os.path.join(self.out_dir, run_id or "run", chapter_id or "chapter")
         if not os.path.exists(base):
             return
+        remove_local = os.getenv("LLM_ARCHIVE_CLEANUP", "false").lower() == "true"
         for fname in os.listdir(base):
             full = os.path.join(base, fname)
             dest_path = f"{run_id}/{chapter_id}/{fname}"
@@ -66,6 +67,12 @@ class LLMClient:
                 # Write a small sidecar mapping for traceability
                 with open(full + ".uploaded", "w", encoding="utf-8") as f:
                     f.write(url)
+                # Optionally remove the local attempt after successful upload
+                if remove_local:
+                    try:
+                        os.remove(full)
+                    except Exception:
+                        pass
             except Exception:
                 # best-effort: don't fail the whole run if storage fails
                 pass

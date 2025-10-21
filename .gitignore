@@ -210,3 +210,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# LangChain
+.langchain/
+
+# MISC
+workspace/

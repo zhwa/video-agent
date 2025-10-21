@@ -3,8 +3,9 @@ from __future__ import annotations
 from typing import Dict, Any, List
 
 from .adapters.llm import LLMAdapter
-from .adapters import get_tts_adapter
+from .adapters import get_tts_adapter, get_image_adapter
 from .storage import get_storage_adapter
+from .parallel import run_tasks_in_threads
 import os
 import uuid
 
@@ -32,15 +33,16 @@ def generate_slides_for_chapter(
             "estimated_duration_sec": s.get("estimated_duration_sec", 60),
             "speaker_notes": s.get("speaker_notes", ""),
         })
-    # Optionally synthesize TTS for each slide if TTS provider configured
+    # Optionally synthesize TTS and generate images for each slide if providers configured
     tts_provider = os.getenv("TTS_PROVIDER")
-    if tts_provider:
-        tts = get_tts_adapter(tts_provider)
-        # storage adapter for uploading generated audio
-        storage = get_storage_adapter()
-        for slide in normalized:
+    image_provider = os.getenv("IMAGE_PROVIDER")
+    storage = get_storage_adapter()
+
+    def _process_slide(slide: dict) -> dict:
+        # Generate audio if TTS enabled
+        if tts_provider:
+            tts = get_tts_adapter(tts_provider)
             text = slide.get("speaker_notes") or ""
-            # create a per-slide output path
             out_dir = os.getenv("LLM_OUT_DIR") or "workspace/out"
             os.makedirs(out_dir, exist_ok=True)
             filename = f"{run_id or 'run'}_{chapter.get('id')}_{slide.get('slide_id')}.mp3"
@@ -54,4 +56,52 @@ def generate_slides_for_chapter(
                     slide["audio_url"] = audio_path
             else:
                 slide["audio_url"] = audio_path
+
+        # Generate image if image provider configured
+        if image_provider:
+            image_adapter = get_image_adapter(image_provider)
+            prompt = slide.get("visual_prompt") or slide.get("title") or "visual"
+            out_dir = os.getenv("LLM_OUT_DIR") or "workspace/out"
+            os.makedirs(out_dir, exist_ok=True)
+            filename = f"{run_id or 'run'}_{chapter.get('id')}_{slide.get('slide_id')}.png"
+            local_path = os.path.join(out_dir, filename)
+            image_path = image_adapter.generate_image(prompt, out_path=local_path)
+            if storage:
+                try:
+                    url = storage.upload_file(image_path, dest_path=f"images/{filename}")
+                    slide["image_url"] = url
+                except Exception:
+                    slide["image_url"] = image_path
+            else:
+                slide["image_url"] = image_path
+        return slide
+
+    # If either provider is enabled, process slides (possibly in parallel)
+    if tts_provider or image_provider:
+        try:
+            max_workers = int(os.getenv("MAX_SLIDE_WORKERS", "1"))
+        except Exception:
+            max_workers = 1
+        try:
+            rate_limit = float(os.getenv("SLIDE_RATE_LIMIT", "0"))
+            if rate_limit <= 0:
+                rate_limit = None
+        except Exception:
+            rate_limit = None
+
+        if max_workers and max_workers > 1 and len(normalized) > 1:
+            tasks = []
+            for s in normalized:
+                def make_task(sl):
+                    def _t():
+                        return _process_slide(sl)
+
+                    return _t
+
+                tasks.append(make_task(s))
+            results = run_tasks_in_threads(tasks, max_workers=max_workers, rate_limit=rate_limit)
+            # results are processed in-place since slides are mutated
+        else:
+            for slide in normalized:
+                _process_slide(slide)
     return {"chapter_id": chapter.get("id"), "slides": normalized}
