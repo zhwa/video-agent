@@ -15,7 +15,9 @@ def get_tts_adapter(provider: str | None = None) -> TTSAdapter:
 
     If provider is None, reads from TTS_PROVIDER env var or defaults to 'dummy'.
     """
-    chosen = provider or __import__("os").environ.get("TTS_PROVIDER") or "dummy"
+    import os
+
+    chosen = provider or os.getenv("TTS_PROVIDER") or "dummy"
     chosen = chosen.lower()
 
     if chosen == "google":
@@ -43,7 +45,9 @@ def get_image_adapter(provider: str | None = None) -> ImageAdapter:
 
     If provider is None, reads from IMAGE_PROVIDER env var or defaults to 'dummy'.
     """
-    chosen = provider or __import__("os").environ.get("IMAGE_PROVIDER") or "dummy"
+    import os
+
+    chosen = provider or os.getenv("IMAGE_PROVIDER") or "dummy"
     chosen = chosen.lower()
 
     if chosen == "stability":

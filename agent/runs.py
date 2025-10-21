@@ -36,6 +36,24 @@ def get_run_metadata(run_id: str) -> Optional[Dict]:
     return json.loads(meta_file.read_text(encoding="utf-8"))
 
 
+def add_run_artifact(run_id: str, artifact_type: str, url: str, metadata: Optional[Dict] = None) -> None:
+    """Add an artifact entry to the run's metadata.json for easy discovery.
+
+    artifact_type: e.g., 'video', 'tts', 'image', 'llm_attempt'
+    metadata: optional dict with extra info (chapter_id, slide_id, etc.)
+    """
+    d = runs_dir() / run_id
+    meta_file = d / "metadata.json"
+    if not meta_file.exists():
+        return
+    try:
+        meta = json.loads(meta_file.read_text(encoding="utf-8"))
+    except Exception:
+        meta = {}
+    meta.setdefault("artifacts", []).append({"type": artifact_type, "url": url, "metadata": metadata or {}})
+    meta_file.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def save_checkpoint(run_id: str, node: str, data: Dict) -> None:
     d = ensure_run_dir(run_id)
     chk_file = d / "checkpoint.json"

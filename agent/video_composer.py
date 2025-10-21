@@ -185,13 +185,14 @@ class VideoComposer:
             from .cache import FileCache, compute_cache_key
             cache = FileCache()
             # Build a cache key from slide assets and durations
-            cache_key_data = []
-            for s in slides:
-                cache_key_data.append({
+            cache_key_data = [
+                {
                     "image": s.get("image_url") or s.get("image_path"),
                     "audio": s.get("audio_url") or s.get("audio_path"),
                     "duration": s.get("estimated_duration_sec"),
-                })
+                }
+                for s in slides
+            ]
             cache_key = compute_cache_key(cache_key_data)
             cached = cache.get(cache_key, extension=".mp4")
             if cached:
@@ -223,7 +224,7 @@ class VideoComposer:
             local_slides.append(s_local)
 
         # Compose the video locally if not cached
-        if not (cache and cache.get(cache_key, extension=".mp4")):
+        if not (cache and cached):
             self.compose_chapter(local_slides, local_video)
             # Store in cache
             if cache and cache_key:
@@ -236,6 +237,13 @@ class VideoComposer:
             try:
                 video_url = storage.upload_file(local_video, dest_path=dest_video_path)
                 result["video_url"] = video_url
+                # record in run metadata for discoverability
+                try:
+                    from .runs import add_run_artifact
+
+                    add_run_artifact(run_id, "video", video_url, metadata={"chapter_id": chapter_id})
+                except Exception:
+                    pass
             except Exception:
                 pass
             # Upload srt if exists
@@ -245,6 +253,12 @@ class VideoComposer:
                 try:
                     srt_url = storage.upload_file(srt_local, dest_path=dest_srt_path)
                     result["srt_url"] = srt_url
+                    try:
+                        from .runs import add_run_artifact
+
+                        add_run_artifact(run_id, "subtitle", srt_url, metadata={"chapter_id": chapter_id})
+                    except Exception:
+                        pass
                 except Exception:
                     result["srt_url"] = srt_local
 

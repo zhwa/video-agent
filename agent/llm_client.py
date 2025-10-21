@@ -67,6 +67,13 @@ class LLMClient:
                 # Write a small sidecar mapping for traceability
                 with open(full + ".uploaded", "w", encoding="utf-8") as f:
                     f.write(url)
+                # Record artifact in run metadata (best-effort)
+                try:
+                    from .runs import add_run_artifact
+
+                    add_run_artifact(run_id, "llm_attempt", url, metadata={"file": fname})
+                except Exception:
+                    pass
                 # Optionally remove the local attempt after successful upload
                 if remove_local:
                     try:
