@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, List, Optional
 from .adapters.schema import validate_slide_plan
 from .prompts import build_prompt
 from .adapters.llm import LLMAdapter
+from .telemetry import record_timing, increment
 
 
 class LLMClient:
@@ -114,6 +115,7 @@ class LLMClient:
 
         while attempt <= self.max_retries:
             # call adapter
+            start = time.time()
             try:
                 if hasattr(adapter, "generate_from_prompt"):
                     raw = adapter.generate_from_prompt(prompt)
@@ -135,10 +137,23 @@ class LLMClient:
             self._write_attempt(run_id or "run", chapter_id or "chapter", attempt, prompt, raw, validation)
             attempts_info.append({"attempt": attempt, "response_raw": raw, "validation": validation})
 
+            # telemetry: record attempt duration and count
+            elapsed = time.time() - start
+            try:
+                increment("llm_attempts")
+                record_timing("llm_attempt_duration_sec", elapsed)
+            except Exception:
+                pass
+
             if ok and parsed:
                 # Archive attempts (best-effort) if storage adapter configured
                 try:
                     self.archive_attempts_to_storage(run_id or "run", chapter_id or "chapter")
+                except Exception:
+                    pass
+                # telemetry: mark success
+                try:
+                    increment("llm_success")
                 except Exception:
                     pass
                 return {"plan": parsed, "attempts": attempts_info}
@@ -169,6 +184,11 @@ class LLMClient:
         parsed_fallback = self._parse_json(fallback) or fallback
         try:
             self.archive_attempts_to_storage(run_id or "run", chapter_id or "chapter")
+        except Exception:
+            pass
+        # telemetry: mark fallback used
+        try:
+            increment("llm_fallbacks")
         except Exception:
             pass
         return {"plan": parsed_fallback, "attempts": attempts_info, "fallback_used": True}

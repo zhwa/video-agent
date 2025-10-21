@@ -4,6 +4,8 @@ import os
 import textwrap
 from typing import List, Dict, Optional
 from .storage import get_storage_adapter
+from .telemetry import record_timing, increment
+import time
 
 def _format_srt_timestamp(seconds: float) -> str:
     # Format seconds to SRT timestamp hh:mm:ss,ms with proper rounding
@@ -161,13 +163,16 @@ class VideoComposer:
 
         # Write video
         if video:
+            start = time.time()
             video.write_videofile(out_path, fps=self.fps, verbose=False, logger=None)
+            record_timing("video_compose_chapter_sec", time.time() - start)
 
         # Write subtitles
         if include_subtitles and srt_entries:
             _write_subtitles(srt_entries, out_path, fmt="srt")
 
         return out_path
+
 
     def compose_and_upload_chapter_video(self, slides: List[Dict], run_id: str, chapter_id: str, upload_path: Optional[str] = None) -> Dict[str, str]:
         """Compose a chapter video from slides, upload to storage, and return URLs.
@@ -310,7 +315,9 @@ class VideoComposer:
 
         final = concatenate_videoclips(processed, method="compose") if processed else None
         if final:
+            start = time.time()
             final.write_videofile(out_path, fps=self.fps, verbose=False, logger=None)
+            record_timing("video_merge_sec", time.time() - start)
             # Close clips
             final.close()
             for c in clips:

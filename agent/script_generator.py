@@ -8,6 +8,8 @@ from .storage import get_storage_adapter
 from .parallel import run_tasks_in_threads
 import os
 import uuid
+from .telemetry import record_timing, increment
+import time
 
 
 def generate_slides_for_chapter(
@@ -19,7 +21,9 @@ def generate_slides_for_chapter(
     """
     text = chapter.get("text", "")
     # Pass through run_id and chapter id to support per-chapter logging by LLMClient
+    start = time.time()
     plan = llm_adapter.generate_slide_plan(text, max_slides=max_slides, run_id=run_id, chapter_id=chapter.get("id"))
+    record_timing("chapter_generation_sec", time.time() - start)
     slides: List[Dict[str, Any]] = plan.get("slides", [])
     # Normalize each slide and add chapter context
     normalized = []
@@ -41,6 +45,7 @@ def generate_slides_for_chapter(
     def _process_slide(slide: dict) -> dict:
         # Generate audio if TTS enabled
         if tts_provider:
+            st = time.time()
             tts = get_tts_adapter(tts_provider)
             text = slide.get("speaker_notes") or ""
             out_dir = os.getenv("LLM_OUT_DIR") or "workspace/out"
@@ -56,9 +61,11 @@ def generate_slides_for_chapter(
                     slide["audio_url"] = audio_path
             else:
                 slide["audio_url"] = audio_path
+            record_timing("tts_generation_sec", time.time() - st)
 
         # Generate image if image provider configured
         if image_provider:
+            st_img = time.time()
             image_adapter = get_image_adapter(image_provider)
             prompt = slide.get("visual_prompt") or slide.get("title") or "visual"
             out_dir = os.getenv("LLM_OUT_DIR") or "workspace/out"
@@ -74,6 +81,7 @@ def generate_slides_for_chapter(
                     slide["image_url"] = image_path
             else:
                 slide["image_url"] = image_path
+            record_timing("image_generation_sec", time.time() - st_img)
         return slide
 
     # If either provider is enabled, process slides (possibly in parallel)
