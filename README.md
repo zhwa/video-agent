@@ -1,8 +1,6 @@
 ﻿# Video Agent
 
-A production-ready pipeline that converts lecture content (PDF/Markdown) into structured slides, synthesized audio, and final video lectures.
-
-**Status**:  Production ready (76/76 tests passing) | Code quality: A+ | Documentation: Comprehensive
+A demo pipeline that converts lecture content (PDF/Markdown) into structured slides, synthesized audio, and final video lectures.
 
 ---
 
