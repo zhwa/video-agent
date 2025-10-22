@@ -3,7 +3,7 @@ import types
 import sys
 import tempfile
 from pathlib import Path
-from agent.adapters import get_tts_adapter, DummyTTSAdapter, GoogleTTSAdapter
+from agent.google import get_tts_adapter, DummyTTSAdapter, GoogleTTSAdapter
 
 
 def test_dummy_tts_writes_text(tmp_path):
@@ -95,7 +95,7 @@ def test_google_tts_with_cache(tmp_path, monkeypatch):
     monkeypatch.setenv("CACHE_DIR", str(tmp_path / "cache"))
     
     try:
-        from agent.adapters.tts import GoogleTTSAdapter
+        from agent.google.tts import GoogleTTSAdapter
         
         adapter = GoogleTTSAdapter(cache_enabled=True)
         

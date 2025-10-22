@@ -1,9 +1,15 @@
 import sys
 import types
+import pytest
+import os
 from pathlib import Path
 from agent.cli import main as cli_main
 
 
+@pytest.mark.skipif(
+    not os.getenv("GOOGLE_API_KEY") and not os.getenv("GOOGLE_GENAI_API_KEY"),
+    reason="Google API key required for integration test"
+)
 def test_cli_runs_and_writes(tmp_path, monkeypatch):
     # Prepare a simple markdown file
     md = tmp_path / "lesson.md"
@@ -25,10 +31,9 @@ def test_cli_runs_and_writes(tmp_path, monkeypatch):
     sys.modules["google"] = google
     sys.modules["google.generativeai"] = generativeai
 
-    # Run CLI with provider override and output to tmp path
-    monkeypatch.setenv("LLM_PROVIDER", "vertex")
+    # Run CLI with output to tmp path
     outdir = tmp_path / "out"
-    argv = ["prog", str(md), "--out", str(outdir), "--provider", "vertex"]
+    argv = ["prog", str(md), "--out", str(outdir)]
     monkeypatch.setattr(sys, "argv", argv)
     cli_main()
 

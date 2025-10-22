@@ -322,24 +322,22 @@ def test_backward_compatibility_old_checkpoint(temp_runs_dir):
 # Integration tests with graphflow_nodes
 
 
-@patch("agent.graphflow_nodes.get_llm_adapter")
 @patch("agent.graphflow_nodes.generate_slides_for_chapter")
 def test_script_gen_node_saves_per_chapter_checkpoint(
-    mock_generate, mock_get_adapter, temp_runs_dir
+    mock_generate, temp_runs_dir
 ):
     """Test that script_gen_node saves per-chapter checkpoints."""
     from agent.graphflow_nodes import _generate_single_script
 
     # Setup mocks
     mock_adapter = MagicMock()
-    mock_get_adapter.return_value = mock_adapter
     mock_generate.return_value = {"title": "Chapter 1", "slides": []}
 
     # Create test state and chapter
     run_id = "test_run_12"
     state = {
         "run_id": run_id,
-        "llm_adapter": mock_adapter,
+        "google": mock_adapter,
     }
     chapter = {
         "id": "intro",
@@ -358,24 +356,22 @@ def test_script_gen_node_saves_per_chapter_checkpoint(
     assert loaded["result"] == {"title": "Chapter 1", "slides": []}
 
 
-@patch("agent.graphflow_nodes.get_llm_adapter")
 @patch("agent.graphflow_nodes.generate_slides_for_chapter")
 def test_script_gen_node_saves_failure_checkpoint(
-    mock_generate, mock_get_adapter, temp_runs_dir
+    mock_generate, temp_runs_dir
 ):
     """Test that script_gen_node saves checkpoint for failed chapters."""
     from agent.graphflow_nodes import _generate_single_script
 
     # Setup mocks
     mock_adapter = MagicMock()
-    mock_get_adapter.return_value = mock_adapter
     mock_generate.side_effect = ValueError("Invalid chapter")
 
     # Create test state and chapter
     run_id = "test_run_13"
     state = {
         "run_id": run_id,
-        "llm_adapter": mock_adapter,
+        "google": mock_adapter,
     }
     chapter = {
         "id": "chapter_1",
@@ -394,17 +390,15 @@ def test_script_gen_node_saves_failure_checkpoint(
     assert "Invalid chapter" in loaded["error"]
 
 
-@patch("agent.graphflow_nodes.get_llm_adapter")
 @patch("agent.graphflow_nodes.generate_slides_for_chapter")
 def test_sequential_generation_saves_per_chapter(
-    mock_generate, mock_get_adapter, temp_runs_dir
+    mock_generate, temp_runs_dir
 ):
     """Test that sequential generation saves each chapter."""
     from agent.graphflow_nodes import _generate_scripts_sequential
 
     # Setup mocks
     mock_adapter = MagicMock()
-    mock_get_adapter.return_value = mock_adapter
     mock_generate.side_effect = [
         {"title": "Ch1"},
         {"title": "Ch2"},
@@ -415,7 +409,7 @@ def test_sequential_generation_saves_per_chapter(
     run_id = "test_run_14"
     state = {
         "run_id": run_id,
-        "llm_adapter": mock_adapter,
+        "google": mock_adapter,
     }
     chapters = [
         {"id": "chapter_0", "title": "Chapter 1"},
@@ -463,12 +457,9 @@ def test_script_gen_node_skips_completed_chapters(temp_runs_dir):
 
     with patch(
         "agent.graphflow_nodes._generate_scripts_sequential"
-    ) as mock_seq, patch(
-        "agent.graphflow_nodes.get_llm_adapter"
-    ) as mock_get_adapter:
+    ) as mock_seq:
         # Mock sequential generation for only the new chapter
         mock_seq.return_value = [{"title": "Ch3"}]
-        mock_get_adapter.return_value = MagicMock()
 
         result = script_gen_node(state)
 

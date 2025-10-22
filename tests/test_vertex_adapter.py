@@ -1,10 +1,10 @@
 import sys
 import types
 import json
-from agent.adapters.google_adapter import GoogleAdapter
+from agent.google import GoogleServices
 
-def test_google_adapter_with_fake_genai(monkeypatch):
-    """Test the unified Google adapter (LLM functionality)."""
+def test_google_services_with_fake_genai(monkeypatch):
+    """Test the unified Google services (LLM functionality)."""
     # Fake google.genai module
     google = types.ModuleType("google")
     genai = types.ModuleType("google.genai")
@@ -42,8 +42,8 @@ def test_google_adapter_with_fake_genai(monkeypatch):
     import os
     os.environ["GOOGLE_API_KEY"] = "fake-key-for-testing"
 
-    adapter = GoogleAdapter(llm_model="gemini-test")
-    result = adapter.generate_slide_plan("Alpha. Beta.")
+    google = GoogleServices(llm_model="gemini-test")
+    result = google.generate_slide_plan("Alpha. Beta.")
     assert isinstance(result, dict)
     assert "slides" in result
     assert len(result["slides"]) >= 1

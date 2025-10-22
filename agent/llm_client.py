@@ -5,16 +5,23 @@ import logging
 import os
 import re
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Protocol
 
 import json_repair
 
-from .adapters.schema import validate_slide_plan
+from .google.schema import validate_slide_plan
 from .prompts import build_prompt
-from .adapters.llm import LLMAdapter
 from .monitoring import record_timing, increment, get_logger
 
 logger = get_logger(__name__)
+
+
+class LLMProvider(Protocol):
+    """Protocol for LLM providers that can generate text from prompts."""
+    
+    def generate_from_prompt(self, prompt: str) -> str:
+        """Generate text from a prompt."""
+        ...
 
 
 class LLMClient:
@@ -27,7 +34,7 @@ class LLMClient:
         if self.storage_adapter is None:
             try:
                 # lazy import to avoid circulars when storage module missing
-                from .storage import get_storage_adapter
+                from .google import get_storage_adapter
                 self.storage_adapter = get_storage_adapter()
             except ImportError as e:
                 logger.debug("Storage adapter not available: %s", e)
@@ -125,10 +132,17 @@ class LLMClient:
             logger.debug("json_repair parsing failed: %s", e)
             return None
 
-    def generate_and_validate(self, adapter: LLMAdapter, chapter_text: str, max_slides: Optional[int] = None, run_id: Optional[str] = None, chapter_id: Optional[str] = None) -> Dict[str, Any]:
-        """Generate slide plan using adapter and validate; attempts repairs when invalid.
+    def generate_and_validate(self, provider: LLMProvider, chapter_text: str, max_slides: Optional[int] = None, run_id: Optional[str] = None, chapter_id: Optional[str] = None) -> Dict[str, Any]:
+        """Generate slide plan using provider and validate; attempts repairs when invalid.
 
         Returns the (possibly repaired) parsed plan and metadata about attempts.
+        
+        Args:
+            provider: Any object with a generate_from_prompt(prompt: str) -> str method
+            chapter_text: The chapter content to generate slides from
+            max_slides: Optional maximum number of slides
+            run_id: Optional run identifier for tracking
+            chapter_id: Optional chapter identifier for tracking
         """
         attempt = 1
         prompt = build_prompt(chapter_text, max_slides=max_slides)
@@ -136,19 +150,15 @@ class LLMClient:
         attempts_info: List[Dict[str, Any]] = []
 
         while attempt <= self.max_retries:
-            # call adapter
+            # call provider
             start = time.time()
             try:
-                if hasattr(adapter, "generate_from_prompt"):
-                    raw = adapter.generate_from_prompt(prompt)
-                else:
-                    # fallback to generate_slide_plan which takes chapter_text
-                    raw = adapter.generate_slide_plan(chapter_text, max_slides=max_slides)
+                raw = provider.generate_text(prompt)
             except ValueError as e:
-                logger.error("Validation error from LLM adapter: %s", e)
+                logger.error("Validation error from LLM provider: %s", e)
                 raw = {"error": str(e)}
             except Exception as e:
-                logger.error("Error calling LLM adapter on attempt %d: %s", attempt, e)
+                logger.error("Error calling LLM provider on attempt %d: %s", attempt, e)
                 raw = {"error": str(e)}
 
             parsed = self._parse_json(raw)
@@ -201,16 +211,9 @@ class LLMClient:
             # optional small backoff
             time.sleep(0.5)
 
-        # After retries, fallback to a deterministic local adapter to avoid recursive calls
-        logger.warning("All %d retry attempts failed, using fallback adapter", self.max_retries)
-        try:
-            # Use the local DummyLLMAdapter as a safe deterministic fallback
-            from .adapters.llm import DummyLLMAdapter
-            fallback = DummyLLMAdapter().generate_slide_plan(chapter_text, max_slides=max_slides)
-            logger.info("Fallback adapter generated slide plan")
-        except Exception as e:
-            logger.error("Fallback adapter also failed: %s", e)
-            fallback = {"slides": []}
+        # After retries, return minimal fallback plan
+        logger.warning("All %d retry attempts failed, returning minimal fallback plan", self.max_retries)
+        fallback = {"slides": []}
 
         parsed_fallback = self._parse_json(fallback) or fallback
         try:

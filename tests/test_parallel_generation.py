@@ -1,17 +1,19 @@
+import os
+import pytest
 import time
 import threading
 from agent.graphflow_nodes import run_graph_description, build_graph_description
-from agent.adapters.llm import LLMAdapter
 
 
-class SlowDummyAdapter(LLMAdapter):
+class SlowMockGoogleServices:
+    """Mock Google services that simulates slow LLM calls for concurrency testing."""
     def __init__(self, sleep_time=0.2, concurrency_counter=None):
         self.sleep_time = sleep_time
         self.counter = concurrency_counter or {"val": 0, "max": 0, "lock": threading.Lock()}
 
-    def generate_from_prompt(self, prompt: str):
+    def generate_text(self, prompt: str):
         # unused for this test
-        return {}
+        return "{}"
 
     def generate_slide_plan(self, chapter_text: str, max_slides=None, run_id=None, chapter_id=None):
         # simulate work and track concurrency
@@ -25,6 +27,10 @@ class SlowDummyAdapter(LLMAdapter):
         return {"slides": [{"id": "s01", "title": "T", "bullets": ["x"], "visual_prompt": "v", "estimated_duration_sec": 30, "speaker_notes": "n"}]}
 
 
+@pytest.mark.skipif(
+    not os.getenv("GOOGLE_API_KEY") and not os.getenv("GOOGLE_GENAI_API_KEY"),
+    reason="Google API key required for integration test"
+)
 def test_parallel_generation_respects_max_workers(monkeypatch):
     # Build a fake document with 6 small chapters
     chapters = []
@@ -46,14 +52,14 @@ def test_parallel_generation_respects_max_workers(monkeypatch):
     desc = build_graph_description("dummy")
 
     counter = {"val": 0, "max": 0, "lock": threading.Lock()}
-    adapter = SlowDummyAdapter(sleep_time=0.2, concurrency_counter=counter)
+    google = SlowMockGoogleServices(sleep_time=0.2, concurrency_counter=counter)
 
     # Configure env to use 3 workers
     import os
     os.environ["MAX_WORKERS"] = "3"
     
     # Run
-    result = run_graph_description(desc, llm_adapter=adapter)
+    result = run_graph_description(desc, llm_adapter=google)
     
     # Assert concurrency observed <= 3
     assert counter["max"] <= 3

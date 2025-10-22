@@ -1,9 +1,38 @@
 from agent.monitoring import get_collector
-from agent.adapters.llm import DummyLLMAdapter
 from agent.script_generator import generate_slides_for_chapter
 from agent.video_composer import VideoComposer
 import os
 import types
+import json
+
+
+class MockGoogleServices:
+    """Mock Google services for testing."""
+    def generate_slide_plan(self, chapter_text, max_slides=None, run_id=None, chapter_id=None):
+        return {
+            "slides": [{
+                "id": "s01",
+                "title": "Test Slide",
+                "bullets": ["Point 1", "Point 2"],
+                "visual_prompt": "test visual",
+                "estimated_duration_sec": 30,
+                "speaker_notes": "Test notes"
+            }]
+        }
+    
+    def synthesize_speech(self, text: str, out_path=None, voice=None, language=None):
+        import os
+        os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+        with open(out_path, "w") as f:
+            f.write(text)
+        return out_path
+    
+    def generate_image(self, prompt: str, out_path=None, width=1024, height=1024):
+        import os
+        os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+        with open(out_path, "wb") as f:
+            f.write(b"\x89PNG\r\n\x1a\n" + prompt.encode("utf-8")[:64])
+        return out_path
 
 
 def test_telemetry_records_llm_and_timing(tmp_path, monkeypatch):
@@ -13,10 +42,10 @@ def test_telemetry_records_llm_and_timing(tmp_path, monkeypatch):
     coll._timings.clear()
     coll._counters.clear()
 
-    # Run a small generation using DummyLLMAdapter
+    # Run a small generation using mock Google services
     chapter = {"id": "c01", "title": "T", "text": "One. Two. Three."}
-    adapter = DummyLLMAdapter()
-    res = generate_slides_for_chapter(chapter, adapter, max_slides=1, run_id="r1")
+    google = MockGoogleServices()
+    res = generate_slides_for_chapter(chapter, google, max_slides=1, run_id="r1")
 
     # Ensure timings recorded for chapter generation
     t = coll.get_timings()

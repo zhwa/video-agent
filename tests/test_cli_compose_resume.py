@@ -1,4 +1,6 @@
 import sys
+import pytest
+import os
 from pathlib import Path
 from agent.cli import main as cli_main
 from agent.runs import create_run, save_checkpoint
@@ -6,6 +8,10 @@ from agent.graphflow_nodes import build_graph_description
 import types
 
 
+@pytest.mark.skipif(
+    not os.getenv("GOOGLE_API_KEY") and not os.getenv("GOOGLE_GENAI_API_KEY"),
+    reason="Google API key required for integration test"
+)
 def test_cli_compose_resumes(tmp_path, monkeypatch):
     md = tmp_path / "lesson.md"
     md.write_text("# Chapter 1\nOne.\n# Chapter 2\nTwo.")

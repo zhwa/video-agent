@@ -21,15 +21,6 @@ python -m agent.cli examples/sample_lecture.md --full-pipeline --out workspace/o
 - **[Chapter 4: Deployment](docs/04_deployment.md)** - Production deployment guide
 - **[Chapter 5: Testing](docs/05_testing.md)** - Testing strategies and test suite
 
-##  Key Features
-
-- Multi-provider support (OpenAI, Vertex AI, ElevenLabs, etc.)
-- Robust JSON parsing with `json_repair` library for LLM outputs
-- Intelligent caching with 60%+ speedup
-- Checkpoint/resume for interrupted runs
-- Parallel processing support
-- 88 comprehensive tests
-
 ##  Testing
 
 ```bash

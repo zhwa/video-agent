@@ -1,8 +1,27 @@
 import pytest
 import os
 from agent.graphflow_nodes import build_graph_description, run_graph_description
-from agent.adapters.llm import DummyLLMAdapter
 from agent.video_composer import VideoComposer
+
+
+class MockGoogleServices:
+    """Mock Google services for testing."""
+    def generate_slide_plan(self, chapter_text: str, max_slides=None, run_id=None, chapter_id=None):
+        return {"slides": [{"id": "s01", "title": "Title", "bullets": ["Bullet"], "visual_prompt": "Visual", "estimated_duration_sec": 30, "speaker_notes": "Notes"}]}
+    
+    def synthesize_speech(self, text: str, out_path=None, voice=None, language=None):
+        import os
+        os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+        with open(out_path, "w") as f:
+            f.write(text)
+        return out_path
+    
+    def generate_image(self, prompt: str, out_path=None, width=1024, height=1024):
+        import os
+        os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+        with open(out_path, "wb") as f:
+            f.write(b"\x89PNG\r\n\x1a\n" + prompt.encode("utf-8")[:64])
+        return out_path
 
 
 def _has_moviepy() -> bool:
@@ -27,8 +46,8 @@ def test_end_to_end_video_pipeline(tmp_path, monkeypatch):
     monkeypatch.setenv("LLM_OUT_DIR", str(tmp_path / "out"))
 
     desc = build_graph_description(str(md))
-    adapter = DummyLLMAdapter()
-    result = run_graph_description(desc, llm_adapter=adapter)
+    google = MockGoogleServices()
+    result = run_graph_description(desc, google=google)
 
     composer = VideoComposer()
     # Monkeypatch compose_chapter to avoid requiring moviepy

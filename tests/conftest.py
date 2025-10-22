@@ -9,7 +9,7 @@ import pytest
 def dummy_storage(tmp_path):
     """Simple local file storage adapter for testing.
     
-    Replaces DummyStorageAdapter from agent.storage.dummy_storage.
+    Replaces DummyStorageAdapter from agent.google.storage.
     Provides upload_file() and download_file() methods for test isolation.
     """
     storage_dir = tmp_path / "storage"

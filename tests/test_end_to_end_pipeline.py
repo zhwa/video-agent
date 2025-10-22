@@ -1,9 +1,36 @@
 import os
+import pytest
 from agent.graphflow_nodes import build_graph_description, run_graph_description
-from agent.adapters.llm import DummyLLMAdapter
 from pathlib import Path
 
 
+class MockGoogleServices:
+    """Mock Google services for testing."""
+    def generate_slide_plan(self, chapter_text: str, max_slides=None, run_id=None, chapter_id=None):
+        # Return deterministic dummy plan
+        return {"slides": [{"id": "s01", "title": "Title", "bullets": ["Bullet"], "visual_prompt": "Visual", "estimated_duration_sec": 30, "speaker_notes": "Notes"}]}
+    
+    def synthesize_speech(self, text: str, out_path=None, voice=None, language=None):
+        # Create dummy audio file
+        import os
+        os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+        with open(out_path, "w") as f:
+            f.write(text)
+        return out_path
+    
+    def generate_image(self, prompt: str, out_path=None, width=1024, height=1024):
+        # Create dummy image file
+        import os
+        os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+        with open(out_path, "wb") as f:
+            f.write(b"\x89PNG\r\n\x1a\n" + prompt.encode("utf-8")[:64])
+        return out_path
+
+
+@pytest.mark.skipif(
+    not os.getenv("GOOGLE_API_KEY") and not os.getenv("GOOGLE_GENAI_API_KEY"),
+    reason="Google API key required for integration test"
+)
 def test_end_to_end_markdown_pipeline(tmp_path, monkeypatch, dummy_storage):
     # Create a simple markdown file
     md = tmp_path / "sample.md"
@@ -21,9 +48,9 @@ def test_end_to_end_markdown_pipeline(tmp_path, monkeypatch, dummy_storage):
     monkeypatch.setattr(vc, "get_storage_adapter", lambda *args, **kwargs: dummy_storage)
 
     desc = build_graph_description(str(md))
-    # Use DummyLLMAdapter to avoid remote calls
-    adapter = DummyLLMAdapter()
-    result = run_graph_description(desc, llm_adapter=adapter)
+    # Use MockGoogleServices to avoid remote calls
+    google = MockGoogleServices()
+    result = run_graph_description(desc, llm_adapter=google)
 
     # Validate structure
     assert "segment" in result

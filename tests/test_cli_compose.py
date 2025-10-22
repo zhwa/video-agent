@@ -1,10 +1,16 @@
 import sys
 import types
 import json
+import pytest
+import os
 from pathlib import Path
 from agent.cli import main as cli_main
 
 
+@pytest.mark.skipif(
+    not os.getenv("GOOGLE_API_KEY") and not os.getenv("GOOGLE_GENAI_API_KEY"),
+    reason="Google API key required for integration test"
+)
 def test_cli_compose_attaches_videos(tmp_path, monkeypatch):
     # Prepare a simple markdown file
     md = tmp_path / "lesson.md"
@@ -41,7 +47,7 @@ def test_cli_compose_attaches_videos(tmp_path, monkeypatch):
     monkeypatch.setattr(vc.VideoComposer, "compose_and_upload_chapter_video", fake_compose)
 
     # Run CLI
-    argv = ["prog", str(md), "--out", str(tmp_path / 'out'), "--provider", "vertex", "--compose"]
+    argv = ["prog", str(md), "--out", str(tmp_path / 'out'), "--compose"]
     monkeypatch.setattr(sys, "argv", argv)
     cli_main()
 

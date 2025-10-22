@@ -8,16 +8,10 @@ PyMuPDF>=1.26.5
 pdfplumber>=0.11.7
 moviepy>=2.0.0
 
+# Google AI services (required for production):
+google-genai>=0.2.0  # For Gemini LLM and Imagen 3.0
+google-cloud-texttospeech>=2.14.0  # For Google Cloud TTS
+
 # Storage adapters (optional):
 # google-cloud-storage>=2.10.0  # For GCS adapter
 # minio>=7.1.0  # For MinIO/S3 adapter
-
-# TTS adapters (optional):
-# google-cloud-texttospeech>=2.14.0  # For Google Cloud TTS
-# elevenlabs>=0.2.0  # For ElevenLabs TTS
-
-# Image generation adapters (optional):
-# google-genai>=0.2.0  # For Google Imagen 3.0 (Nano Banana)
-
-# Embedding & vector DB clients used later (optional):
-# qdrant-client, pinecone-client

@@ -9,7 +9,7 @@ from typing import Optional
 
 from .graphflow_graph import create_video_agent_graph, prepare_graph_input
 from .runs_checkpoint import checkpoint_invoke
-from .adapters.factory import get_llm_adapter
+from .google import GoogleServices
 from .monitoring import configure_logging, get_logger
 
 # Will be configured on startup
@@ -52,7 +52,6 @@ def _filter_serializable_result(result: dict) -> dict:
 def main():
     p = argparse.ArgumentParser(description="Run the GraphFlow video composition agent")
     p.add_argument("path", help="Path to input file (PDF/MD) or directory")
-    p.add_argument("--provider", help="LLM provider override (vertex|openai)")
     p.add_argument("--out", help="Output folder to write results", default="workspace/out")
     p.add_argument("--llm-retries", help="Max retries for LLM client", type=int, default=None)
     p.add_argument("--llm-out", help="Directory for LLM attempt logs", default=None)
@@ -140,15 +139,15 @@ def main():
 
     # Create and execute the GraphFlow graph
     graph = create_video_agent_graph()
-    adapter = None
-    if args.provider:
-        adapter = get_llm_adapter(args.provider)
+    
+    # Initialize Google services
+    google = GoogleServices()
     
     # Prepare initial state
     initial_state = prepare_graph_input(
         input_path=args.path,
         run_id=args.resume,
-        llm_adapter=adapter,
+        google=google,
         full_pipeline=args.full_pipeline,
         compose=args.compose,
         merge=args.merge,
@@ -334,7 +333,7 @@ def main():
                 logger.info("Video merge completed: %s", local_merged)
                 
                 # Optionally upload via storage adapter
-                from .storage import get_storage_adapter
+                from .google import get_storage_adapter
                 storage = get_storage_adapter()
                 if storage:
                     try:

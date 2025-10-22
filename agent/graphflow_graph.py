@@ -147,7 +147,7 @@ def create_parallel_graph() -> Any:
 def prepare_graph_input(
     input_path: str,
     run_id: str | None = None,
-    llm_adapter: Any = None,
+    google: Any = None,
     full_pipeline: bool = False,
     compose: bool = False,
     merge: bool = False,
@@ -157,7 +157,7 @@ def prepare_graph_input(
     Args:
         input_path: Path to input document
         run_id: Optional run ID for checkpoint/artifact tracking
-        llm_adapter: Optional LLM adapter instance
+        google: Optional GoogleServices instance
         full_pipeline: Execute full pipeline (ingest -> merge)
         compose: Execute composition step
         merge: Execute merge step
@@ -178,8 +178,8 @@ def prepare_graph_input(
         "merge": merge,
     }
 
-    if llm_adapter is not None:
-        initial_state["llm_adapter"] = llm_adapter
+    if google is not None:
+        initial_state["google"] = google
 
     logger.debug(f"Prepared graph input for run {run_id}")
 

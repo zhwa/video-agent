@@ -6,9 +6,7 @@ import time
 import uuid
 from typing import Dict, Any, List
 
-from .adapters.llm import LLMAdapter
-from .adapters import get_tts_adapter, get_image_adapter
-from .storage import get_storage_adapter
+from .google import GoogleServices, get_storage_adapter
 from .parallel import run_tasks_in_threads
 from .monitoring import record_timing, increment, get_logger
 
@@ -16,16 +14,16 @@ logger = get_logger(__name__)
 
 
 def generate_slides_for_chapter(
-    chapter: Dict[str, Any], llm_adapter: LLMAdapter, max_slides: int | None = None, run_id: str | None = None
+    chapter: Dict[str, Any], google: GoogleServices, max_slides: int | None = None, run_id: str | None = None
 ) -> Dict[str, Any]:
-    """Generate a slide plan for a single chapter using the provided LLM adapter.
+    """Generate a slide plan for a single chapter using Google services.
 
-    The returned structure mirrors the adapter output but attaches chapter id.
+    The returned structure mirrors the output but attaches chapter id.
     """
     text = chapter.get("text", "")
     # Pass through run_id and chapter id to support per-chapter logging by LLMClient
     start = time.time()
-    plan = llm_adapter.generate_slide_plan(text, max_slides=max_slides, run_id=run_id, chapter_id=chapter.get("id"))
+    plan = google.generate_slide_plan(text, max_slides=max_slides, run_id=run_id, chapter_id=chapter.get("id"))
     record_timing("chapter_generation_sec", time.time() - start)
     slides: List[Dict[str, Any]] = plan.get("slides", [])
     # Normalize each slide and add chapter context
@@ -40,23 +38,22 @@ def generate_slides_for_chapter(
             "estimated_duration_sec": s.get("estimated_duration_sec", 60),
             "speaker_notes": s.get("speaker_notes", ""),
         })
-    # Optionally synthesize TTS and generate images for each slide if providers configured
-    tts_provider = os.getenv("TTS_PROVIDER")
-    image_provider = os.getenv("IMAGE_PROVIDER")
+    # Optionally synthesize TTS and generate images for each slide
+    enable_tts = os.getenv("ENABLE_TTS", "true").lower() in ("true", "1", "yes")
+    enable_images = os.getenv("ENABLE_IMAGES", "true").lower() in ("true", "1", "yes")
     storage = get_storage_adapter()
 
     def _process_slide(slide: dict) -> dict:
         # Generate audio if TTS enabled
-        if tts_provider:
+        if enable_tts:
             st = time.time()
             try:
-                tts = get_tts_adapter(tts_provider)
                 text = slide.get("speaker_notes") or ""
                 out_dir = os.getenv("LLM_OUT_DIR") or "workspace/out"
                 os.makedirs(out_dir, exist_ok=True)
                 filename = f"{run_id or 'run'}_{chapter.get('id')}_{slide.get('slide_id')}.mp3"
                 local_path = os.path.join(out_dir, filename)
-                audio_path = tts.synthesize(text, out_path=local_path)
+                audio_path = google.synthesize_speech(text, out_path=local_path)
                 if storage:
                     try:
                         url = storage.upload_file(audio_path, dest_path=f"tts/{filename}")
@@ -73,17 +70,16 @@ def generate_slides_for_chapter(
             finally:
                 record_timing("tts_generation_sec", time.time() - st)
 
-        # Generate image if image provider configured
-        if image_provider:
+        # Generate image if images enabled
+        if enable_images:
             st_img = time.time()
             try:
-                image_adapter = get_image_adapter(image_provider)
                 prompt = slide.get("visual_prompt") or slide.get("title") or "visual"
                 out_dir = os.getenv("LLM_OUT_DIR") or "workspace/out"
                 os.makedirs(out_dir, exist_ok=True)
                 filename = f"{run_id or 'run'}_{chapter.get('id')}_{slide.get('slide_id')}.png"
                 local_path = os.path.join(out_dir, filename)
-                image_path = image_adapter.generate_image(prompt, out_path=local_path)
+                image_path = google.generate_image(prompt, out_path=local_path)
                 if storage:
                     try:
                         url = storage.upload_file(image_path, dest_path=f"images/{filename}")
@@ -101,8 +97,8 @@ def generate_slides_for_chapter(
                 record_timing("image_generation_sec", time.time() - st_img)
         return slide
 
-    # If either provider is enabled, process slides (possibly in parallel)
-    if tts_provider or image_provider:
+    # If either TTS or images are enabled, process slides (possibly in parallel)
+    if enable_tts or enable_images:
         try:
             max_workers = int(os.getenv("MAX_SLIDE_WORKERS", "1"))
         except (ValueError, TypeError):

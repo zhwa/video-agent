@@ -17,7 +17,7 @@ import uuid
 import warnings
 from typing import Any, Dict, List, Optional
 
-from .adapters.factory import get_llm_adapter
+from .google import GoogleServices
 from .io import read_file
 from .parallel import run_tasks_in_threads
 from .runs_checkpoint import (
@@ -245,16 +245,16 @@ def _generate_single_script(
     Returns:
         Update dict with single script in list
     """
-    adapter = state.get("llm_adapter")
-    if adapter is None:
-        adapter = get_llm_adapter()
+    google = state.get("google")
+    if google is None:
+        google = GoogleServices()
 
     run_id = state.get("run_id", str(uuid.uuid4()))
     chapter_id = chapter.get("id", f"chapter_{index}")
 
     try:
         logger.debug(f"Generating script for chapter {index}: {chapter_id}")
-        script = generate_slides_for_chapter(chapter, adapter, run_id=run_id)
+        script = generate_slides_for_chapter(chapter, google, run_id=run_id)
         
         # Phase 4: Save per-chapter checkpoint
         if run_id:
@@ -342,9 +342,9 @@ def _generate_scripts_sequential(
     Returns:
         List of generated script dictionaries
     """
-    adapter = state.get("llm_adapter")
-    if adapter is None:
-        adapter = get_llm_adapter()
+    google = state.get("google")
+    if google is None:
+        google = GoogleServices()
 
     run_id = state.get("run_id", str(uuid.uuid4()))
 
@@ -356,7 +356,7 @@ def _generate_scripts_sequential(
         )
         
         try:
-            script = generate_slides_for_chapter(chapter, adapter, run_id=run_id)
+            script = generate_slides_for_chapter(chapter, google, run_id=run_id)
             script_results.append(script)
             
             # Phase 4: Save per-chapter checkpoint after each successful generation
@@ -398,9 +398,9 @@ def _generate_scripts_parallel_threaded(
     Returns:
         List of generated script dictionaries
     """
-    adapter = state.get("llm_adapter")
-    if adapter is None:
-        adapter = get_llm_adapter()
+    google = state.get("google")
+    if google is None:
+        google = GoogleServices()
 
     run_id = state.get("run_id", str(uuid.uuid4()))
 
@@ -413,7 +413,7 @@ def _generate_scripts_parallel_threaded(
 
     def make_task(chapter):
         def _task():
-            return generate_slides_for_chapter(chapter, adapter, run_id=run_id)
+            return generate_slides_for_chapter(chapter, google, run_id=run_id)
 
         return _task
 

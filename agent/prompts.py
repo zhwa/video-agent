@@ -21,7 +21,7 @@ def build_prompt(chapter_text: str, max_slides: Optional[int] = None, schema_des
         max_slides = 6
     if schema_description is None:
         # Build a short description from required keys
-        from .adapters.schema import REQUIRED_SLIDE_KEYS
+        from .google.schema import REQUIRED_SLIDE_KEYS
 
         schema_description = ", ".join(REQUIRED_SLIDE_KEYS)
     return tmpl.format(chapter_text=chapter_text, max_slides=max_slides, schema_description=schema_description)

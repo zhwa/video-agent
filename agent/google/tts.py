@@ -159,3 +159,17 @@ class GoogleTTSAdapter(TTSAdapter):
             )
         
         return out_path
+
+
+def get_tts_adapter(provider: Optional[str] = None) -> TTSAdapter:
+    """Get TTS adapter (returns GoogleTTSAdapter for 'google', otherwise DummyTTSAdapter).
+    
+    Args:
+        provider: TTS provider name ('google' or None for dummy)
+        
+    Returns:
+        TTS adapter instance
+    """
+    if provider and provider.lower() == "google":
+        return GoogleTTSAdapter()
+    return DummyTTSAdapter()
