@@ -7,16 +7,50 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from .langgraph_nodes import build_graph_description, run_graph_description
+from .graphflow_graph import create_video_agent_graph, prepare_graph_input
+from .runs_checkpoint import checkpoint_invoke
 from .adapters.factory import get_llm_adapter
-from .log_config import configure_logging, get_logger
+from .monitoring import configure_logging, get_logger
 
 # Will be configured on startup
 logger: logging.Logger = None
 
 
+def _filter_serializable_result(result: dict) -> dict:
+    """Filter out non-JSON-serializable objects from result dict.
+
+    Removes LLM adapters and other complex objects that can't be
+    serialized to JSON.
+
+    Args:
+        result: Result dictionary from graph execution
+
+    Returns:
+        Filtered dictionary with only JSON-serializable values
+    """
+    filtered = {}
+    for key, value in result.items():
+        # Skip adapter objects
+        if key in ("llm_adapter", "llm_adapter_used"):
+            # Keep adapter name but not the object itself
+            if key == "llm_adapter_used" and isinstance(value, str):
+                filtered[key] = value
+            continue
+
+        try:
+            # Test if serializable
+            json.dumps(value)
+            filtered[key] = value
+        except (TypeError, ValueError):
+            # Skip non-serializable values
+            logger.debug(f"Skipping non-serializable field in result: {key}")
+            continue
+
+    return filtered
+
+
 def main():
-    p = argparse.ArgumentParser(description="Run the LangGraph lecture agent (PoC)")
+    p = argparse.ArgumentParser(description="Run the GraphFlow video composition agent")
     p.add_argument("path", help="Path to input file (PDF/MD) or directory")
     p.add_argument("--provider", help="LLM provider override (vertex|openai)")
     p.add_argument("--out", help="Output folder to write results", default="workspace/out")
@@ -104,13 +138,24 @@ def main():
             logger.error("Unexpected error inspecting run %s: %s", args.inspect, e)
         return
 
-    desc = build_graph_description(args.path)
+    # Create and execute the GraphFlow graph
+    graph = create_video_agent_graph()
     adapter = None
     if args.provider:
         adapter = get_llm_adapter(args.provider)
     
+    # Prepare initial state
+    initial_state = prepare_graph_input(
+        input_path=args.path,
+        run_id=args.resume,
+        llm_adapter=adapter,
+        full_pipeline=args.full_pipeline,
+        compose=args.compose,
+        merge=args.merge,
+    )
+    
     try:
-        result = run_graph_description(desc, llm_adapter=adapter, resume_run_id=args.resume)
+        result = checkpoint_invoke(graph, initial_state, run_id=args.resume)
         logger.info("Graph execution completed successfully")
     except ValueError as e:
         logger.error("Invalid input: %s", e)
@@ -121,7 +166,9 @@ def main():
     
     out_file = out_dir / (Path(args.path).stem + "_results.json")
     try:
-        out_file.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+        # Filter out non-serializable objects from result
+        serializable_result = _filter_serializable_result(result)
+        out_file.write_text(json.dumps(serializable_result, ensure_ascii=False, indent=2), encoding="utf-8")
         print("Results written to:", out_file)
         logger.info("Results written to: %s", out_file)
     except OSError as e:
@@ -176,9 +223,21 @@ def main():
             # reduce race conditions and incrementally save per-chapter results.
             if max_workers and max_workers > 1 and len(chapters) > 1 and not existing_composition:
                 try:
-                    from .composer_runner import compose_chapters_parallel
+                    # Parallel composition using run_tasks_in_threads
+                    from .parallel import run_tasks_in_threads
+                    
+                    # Create composition tasks for each chapter
+                    def make_task(ch):
+                        def _task():
+                            return composer.compose_and_upload_chapter_video(
+                                ch.get("slides", []), run_id, ch.get("chapter_id")
+                            )
+                        return _task
+                    
+                    tasks = [make_task(c) for c in chapters]
                     logger.info("Starting parallel composition with %d workers", max_workers)
-                    comp_results = compose_chapters_parallel(composer, chapters, run_id, max_workers=max_workers, rate_limit=rate_limit)
+                    comp_results = run_tasks_in_threads(tasks, max_workers=max_workers, rate_limit=rate_limit)
+                    
                     # Merge results into checkpoint and attach to chapters
                     composition_list = []
                     for c, comp_res in zip(chapters, comp_results):
@@ -237,7 +296,8 @@ def main():
             
             # Re-write the results with composition URLs
             try:
-                out_file.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+                serializable_result = _filter_serializable_result(result)
+                out_file.write_text(json.dumps(serializable_result, ensure_ascii=False, indent=2), encoding="utf-8")
                 print("Composition completed and results updated:", out_file)
                 logger.info("Composition completed successfully")
             except OSError as e:

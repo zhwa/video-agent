@@ -4,7 +4,7 @@ import os
 import textwrap
 from typing import List, Dict, Optional
 from .storage import get_storage_adapter
-from .telemetry import record_timing, increment
+from .monitoring import record_timing, increment
 import time
 
 def _format_srt_timestamp(seconds: float) -> str:

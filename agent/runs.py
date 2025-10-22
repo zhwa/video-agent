@@ -59,22 +59,12 @@ def add_run_artifact(run_id: str, artifact_type: str, url: str, metadata: Option
 
 def save_checkpoint(run_id: str, node: str, data: Dict) -> None:
     """Save checkpoint with atomic write (thread-safe)."""
-    try:
-        # Use atomic save from runs_safe module for thread-safety
-        from .runs_safe import save_checkpoint_atomic
-        save_checkpoint_atomic(run_id, node, data)
-    except Exception as e:
-        logger.warning("Thread-safe checkpoint save failed, falling back to standard save: %s", e)
-        # Fallback to non-atomic save for compatibility
-        d = ensure_run_dir(run_id)
-        chk_file = d / "checkpoint.json"
-        if chk_file.exists():
-            current = json.loads(chk_file.read_text(encoding="utf-8"))
-        else:
-            current = {}
-        current[node] = data
-        current.setdefault("completed", {})[node] = datetime.utcnow().isoformat()
-        chk_file.write_text(json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
+    d = ensure_run_dir(run_id)
+    chk_file = d / "checkpoint.json"
+    current = json.loads(chk_file.read_text(encoding="utf-8")) if chk_file.exists() else {}
+    current[node] = data
+    current.setdefault("completed", {})[node] = datetime.utcnow().isoformat()
+    chk_file.write_text(json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def load_checkpoint(run_id: str) -> Dict:

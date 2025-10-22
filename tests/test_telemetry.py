@@ -1,4 +1,4 @@
-from agent.telemetry import get_collector
+from agent.monitoring import get_collector
 from agent.adapters.llm import DummyLLMAdapter
 from agent.script_generator import generate_slides_for_chapter
 from agent.video_composer import VideoComposer

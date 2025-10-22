@@ -1,12 +1,11 @@
 import os
 from agent.video_composer import VideoComposer
-from agent.storage.dummy_storage import DummyStorageAdapter
 
 
-def test_compose_and_upload_uploads_to_storage(tmp_path, monkeypatch):
-    # Prepare dummy storage and set env
+def test_compose_and_upload_uploads_to_storage(tmp_path, monkeypatch, dummy_storage):
+    # Use fixture-provided storage
+    storage = dummy_storage
     storage_dir = tmp_path / "storage"
-    storage = DummyStorageAdapter(base_dir=str(storage_dir))
     # Create dummy files
     img = tmp_path / "img.png"
     img.write_bytes(b"\x89PNG\r\n\x1a\n")

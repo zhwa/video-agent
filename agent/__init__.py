@@ -1,18 +1,16 @@
-"""Agent package - ingestion and segmentation utilities.
+"""Agent package - video composition and orchestration.
 
-This package contains lightweight, testable helpers for Milestone 1 (ingest +
-chapter segmentation). Modules are intentionally small and free of heavy
-side-effects so tests can run on machines without all optional dependencies.
+This package contains the GraphFlow-based video composition engine with support
+for parallel chapter processing, checkpointing, and various adapter integrations.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from .io import read_markdown, read_pdf, read_file, list_documents
 from .segmenter import (
     segment_text_into_chapters,
     segment_pages_into_chapters,
 )
-from .langgraph_graph import LectureAgentRunner
 from .adapters.llm import LLMAdapter, DummyLLMAdapter
 
 __all__ = [

@@ -1,6 +1,6 @@
 import pytest
 import os
-from agent.langgraph_nodes import build_graph_description, run_graph_description
+from agent.graphflow_nodes import build_graph_description, run_graph_description
 from agent.adapters.llm import DummyLLMAdapter
 from agent.video_composer import VideoComposer
 

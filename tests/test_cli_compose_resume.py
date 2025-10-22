@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 from agent.cli import main as cli_main
 from agent.runs import create_run, save_checkpoint
-from agent.langgraph_nodes import build_graph_description
+from agent.graphflow_nodes import build_graph_description
 import types
 
 

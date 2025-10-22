@@ -1,6 +1,6 @@
 import time
 import threading
-from agent.langgraph_nodes import run_graph_description, build_graph_description
+from agent.graphflow_nodes import run_graph_description, build_graph_description
 from agent.adapters.llm import LLMAdapter
 
 
@@ -35,14 +35,13 @@ def test_parallel_generation_respects_max_workers(monkeypatch):
             "text": "One. Two."
         })
 
-    # Monkeypatch segmenter outputs by monkeypatching read_file and segmentation functions
+    # Monkeypatch graphflow_nodes (which is used by run_graph_description)
     def fake_read_file(path):
         return {"type": "markdown", "text": "dummy"}
 
-    # Apply monkeypatch BEFORE building the description
-    import agent.langgraph_nodes as ln_mod
-    monkeypatch.setattr(ln_mod, "read_file", fake_read_file)
-    monkeypatch.setattr(ln_mod, "segment_text_into_chapters", lambda t: chapters)
+    import agent.graphflow_nodes as gn_mod
+    monkeypatch.setattr(gn_mod, "read_file", fake_read_file)
+    monkeypatch.setattr(gn_mod, "segment_text_into_chapters", lambda t: chapters)
 
     desc = build_graph_description("dummy")
 
@@ -60,3 +59,4 @@ def test_parallel_generation_respects_max_workers(monkeypatch):
     assert counter["max"] <= 3
     # Also verify we produced script_gen results for all chapters
     assert len(result["script_gen"]) == len(chapters)
+

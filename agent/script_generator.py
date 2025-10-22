@@ -10,8 +10,7 @@ from .adapters.llm import LLMAdapter
 from .adapters import get_tts_adapter, get_image_adapter
 from .storage import get_storage_adapter
 from .parallel import run_tasks_in_threads
-from .telemetry import record_timing, increment
-from .log_config import get_logger
+from .monitoring import record_timing, increment, get_logger
 
 logger = get_logger(__name__)
 

@@ -11,8 +11,7 @@ from .adapters.schema import validate_slide_plan
 from .adapters.json_utils import extract_json_from_text
 from .prompts import build_prompt
 from .adapters.llm import LLMAdapter
-from .telemetry import record_timing, increment
-from .log_config import get_logger
+from .monitoring import record_timing, increment, get_logger
 
 logger = get_logger(__name__)
 

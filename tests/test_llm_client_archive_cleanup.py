@@ -1,9 +1,8 @@
 import os
 from agent.llm_client import LLMClient
-from agent.storage.dummy_storage import DummyStorageAdapter
 
 
-def test_archive_attempts_cleanup_removes_local_files(tmp_path, monkeypatch):
+def test_archive_attempts_cleanup_removes_local_files(tmp_path, monkeypatch, dummy_storage):
     # Prepare a fake out_dir with attempt files
     out_dir = tmp_path / "llm_out"
     (out_dir / "run1" / "chapter-01").mkdir(parents=True)
@@ -15,7 +14,7 @@ def test_archive_attempts_cleanup_removes_local_files(tmp_path, monkeypatch):
     r.write_text("response")
     v.write_text("{}")
 
-    storage = DummyStorageAdapter(base_dir=str(tmp_path / "storage"))
+    storage = dummy_storage
     client = LLMClient(max_retries=1, out_dir=str(out_dir), storage_adapter=storage)
     # enable cleanup
     monkeypatch.setenv("LLM_ARCHIVE_CLEANUP", "true")
@@ -27,12 +26,9 @@ def test_archive_attempts_cleanup_removes_local_files(tmp_path, monkeypatch):
     assert not v.exists()
     # uploaded sidecar should remain
     assert (base / "attempt_01_prompt.txt.uploaded").exists()
-import os
-from agent.llm_client import LLMClient
-from agent.storage.dummy_storage import DummyStorageAdapter
 
 
-def test_archive_cleans_local_files(tmp_path, monkeypatch):
+def test_archive_cleans_local_files(tmp_path, monkeypatch, dummy_storage):
     out_dir = tmp_path / "llm_out"
     (out_dir / "run1" / "chapter-01").mkdir(parents=True)
     base = out_dir / "run1" / "chapter-01"
@@ -41,7 +37,7 @@ def test_archive_cleans_local_files(tmp_path, monkeypatch):
     f2 = base / "attempt_01_response.txt"
     f2.write_text("response")
 
-    storage = DummyStorageAdapter(base_dir=str(tmp_path / "storage"))
+    storage = dummy_storage
     client = LLMClient(max_retries=1, out_dir=str(out_dir), storage_adapter=storage)
     monkeypatch.setenv("LLM_ARCHIVE_CLEANUP", "true")
     client.archive_attempts_to_storage("run1", "chapter-01")

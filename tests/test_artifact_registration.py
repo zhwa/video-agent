@@ -1,13 +1,11 @@
-from agent.storage.dummy_storage import DummyStorageAdapter
 from agent.video_composer import VideoComposer
 from agent.runs import create_run, get_run_metadata
 import os
 
 
-def test_video_artifact_recorded_in_metadata(tmp_path, monkeypatch):
-    # Prepare dummy storage and set env
-    storage_dir = tmp_path / "storage"
-    storage = DummyStorageAdapter(base_dir=str(storage_dir))
+def test_video_artifact_recorded_in_metadata(tmp_path, monkeypatch, dummy_storage):
+    # Use fixture-provided storage
+    storage = dummy_storage
     # Create dummy files
     img = tmp_path / "img.png"
     img.write_bytes(b"\x89PNG\r\n\x1a\n")

@@ -27,10 +27,11 @@ def get_storage_adapter(name: Optional[str] = None, **kwargs) -> Optional[Storag
     Supported names:
     - 'gcs': Google Cloud Storage
     - 'minio': MinIO (S3-compatible)
-    - 'dummy': Local filesystem (testing)
     
     If name is None, reads from STORAGE_PROVIDER or LLM_STORAGE env var.
     Returns None if no provider configured or on import errors.
+    
+    Note: 'dummy' provider removed - use pytest conftest.py dummy_storage fixture for testing.
     """
     chosen = name or os.getenv("STORAGE_PROVIDER") or os.getenv("LLM_STORAGE")
     if not chosen:
@@ -53,11 +54,5 @@ def get_storage_adapter(name: Optional[str] = None, **kwargs) -> Optional[Storag
         except Exception:
             # Fall back to None if MinIO not available
             return None
-    
-    if chosen == "dummy":
-        # Lazy import to avoid importing test helpers at module import time
-        from .dummy_storage import DummyStorageAdapter
-        base_dir = kwargs.get("base_dir") or os.getenv("LLM_STORAGE_DIR")
-        return DummyStorageAdapter(base_dir=base_dir)
     
     return None
