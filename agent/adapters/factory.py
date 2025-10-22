@@ -11,11 +11,11 @@ logger = logging.getLogger(__name__)
 def get_llm_adapter(provider: Optional[str] = None) -> LLMAdapter:
     """Return an LLM adapter instance chosen by provider or environment.
 
-    Provider may be 'vertex' or 'openai'. If not specified, reads LLM_PROVIDER
-    env variable or defaults to 'vertex'. If the requested adapter cannot be
+    Provider may be 'google' or 'openai'. If not specified, reads LLM_PROVIDER
+    env variable or defaults to 'google'. If the requested adapter cannot be
     instantiated (missing deps), falls back to DummyLLMAdapter.
     """
-    chosen = provider or os.getenv("LLM_PROVIDER") or "vertex"
+    chosen = provider or os.getenv("LLM_PROVIDER") or "google"
     chosen = chosen.lower()
     logger.debug("Resolving LLM adapter: %s", chosen)
 
@@ -32,17 +32,17 @@ def get_llm_adapter(provider: Optional[str] = None) -> LLMAdapter:
             logger.warning("Failed to initialize OpenAI adapter, falling back to dummy: %s", e)
             return DummyLLMAdapter()
 
-    if chosen in ("vertex", "google", "gcp"):
+    if chosen in ("google", "vertex", "gcp", "gemini"):
         try:
-            from .google_vertex_adapter import VertexLLMAdapter
-            adapter = VertexLLMAdapter()
-            logger.info("Initialized Vertex AI LLM adapter")
+            from .google_adapter import GoogleAdapter
+            adapter = GoogleAdapter()
+            logger.info("Initialized Google (Gemini) LLM adapter")
             return adapter
         except ImportError as e:
-            logger.warning("Vertex adapter not available (google-cloud not installed), falling back to dummy: %s", e)
+            logger.warning("Google adapter not available (google-genai not installed), falling back to dummy: %s", e)
             return DummyLLMAdapter()
         except Exception as e:
-            logger.warning("Failed to initialize Vertex adapter, falling back to dummy: %s", e)
+            logger.warning("Failed to initialize Google adapter, falling back to dummy: %s", e)
             return DummyLLMAdapter()
 
     # Unknown provider: return dummy
@@ -97,42 +97,28 @@ def get_image_adapter(provider: Optional[str] = None):
     """Return an image adapter instance chosen by provider or environment.
 
     Supported providers:
-    - 'stability': Stability.ai (Stable Diffusion)
-    - 'replicate': Replicate (various models)
+    - 'google' or 'imagen': Google Imagen 3.0 (Nano Banana)
     - 'dummy': Deterministic dummy (testing)
 
-    If provider is None, reads from IMAGE_PROVIDER env var or defaults to 'dummy'.
+    If provider is None, reads from IMAGE_PROVIDER env var or defaults to 'google'.
     """
     from .image import DummyImageAdapter
 
-    chosen = provider or os.getenv("IMAGE_PROVIDER") or "dummy"
+    chosen = provider or os.getenv("IMAGE_PROVIDER") or "google"
     chosen = chosen.lower()
     logger.debug("Resolving image adapter: %s", chosen)
 
-    if chosen == "stability":
+    if chosen in ("google", "imagen", "gcp", "gemini"):
         try:
-            from .stability_adapter import StabilityImageAdapter
-            adapter = StabilityImageAdapter()
-            logger.info("Initialized Stability.ai image adapter")
+            from .google_adapter import GoogleAdapter
+            adapter = GoogleAdapter()
+            logger.info("Initialized Google (Imagen) image adapter")
             return adapter
         except ImportError as e:
-            logger.warning("Stability.ai image adapter not available (stability-sdk not installed), falling back to dummy: %s", e)
+            logger.warning("Google adapter not available (google-genai not installed), falling back to dummy: %s", e)
             return DummyImageAdapter()
         except Exception as e:
-            logger.warning("Failed to initialize Stability.ai image adapter, falling back to dummy: %s", e)
-            return DummyImageAdapter()
-
-    if chosen == "replicate":
-        try:
-            from .replicate_adapter import ReplicateImageAdapter
-            adapter = ReplicateImageAdapter()
-            logger.info("Initialized Replicate image adapter")
-            return adapter
-        except ImportError as e:
-            logger.warning("Replicate image adapter not available (replicate not installed), falling back to dummy: %s", e)
-            return DummyImageAdapter()
-        except Exception as e:
-            logger.warning("Failed to initialize Replicate image adapter, falling back to dummy: %s", e)
+            logger.warning("Failed to initialize Google adapter, falling back to dummy: %s", e)
             return DummyImageAdapter()
 
     logger.info("Using Dummy image adapter")

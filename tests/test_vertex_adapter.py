@@ -1,32 +1,54 @@
 import sys
 import types
 import json
-from agent.adapters.google_vertex_adapter import VertexLLMAdapter
+from agent.adapters.google_adapter import GoogleAdapter
 
-
-def test_vertex_adapter_with_fake_generativeai(monkeypatch):
-    # Fake google.generativeai module
+def test_google_adapter_with_fake_genai(monkeypatch):
+    """Test the unified Google adapter (LLM functionality)."""
+    # Fake google.genai module
     google = types.ModuleType("google")
-    generativeai = types.ModuleType("google.generativeai")
+    genai = types.ModuleType("google.genai")
 
-    class FakeResp:
-        def __init__(self, output: str):
-            self.candidates = [types.SimpleNamespace(output=output)]
-
-    def fake_generate_text(model, input):
-        return FakeResp(json.dumps({"slides": [{"id": "s01", "title": "VTest", "bullets": ["x"], "visual_prompt": "v", "estimated_duration_sec": 25, "speaker_notes": "n"}]}))
-
-    generativeai.generate_text = fake_generate_text
-    google.generativeai = generativeai
+    class FakeClient:
+        class FakeModels:
+            @staticmethod
+            def generate_content(model, contents):
+                # Return fake response for LLM
+                response = types.SimpleNamespace()
+                response.text = json.dumps({
+                    "slides": [
+                        {
+                            "id": "s01",
+                            "title": "Google Test",
+                            "bullets": ["Unified adapter"],
+                            "visual_prompt": "test image",
+                            "estimated_duration_sec": 25,
+                            "speaker_notes": "test notes"
+                        }
+                    ]
+                })
+                return response
+        
+        def __init__(self, api_key):
+            self.models = self.FakeModels()
+    
+    genai.Client = FakeClient
+    google.genai = genai
 
     sys.modules["google"] = google
-    sys.modules["google.generativeai"] = generativeai
+    sys.modules["google.genai"] = genai
 
-    adapter = VertexLLMAdapter(model="test-model")
+    # Set API key in environment
+    import os
+    os.environ["GOOGLE_API_KEY"] = "fake-key-for-testing"
+
+    adapter = GoogleAdapter(llm_model="gemini-test")
     result = adapter.generate_slide_plan("Alpha. Beta.")
     assert isinstance(result, dict)
     assert "slides" in result
     assert len(result["slides"]) >= 1
 
-    del sys.modules["google.generativeai"]
+    # Cleanup
+    del sys.modules["google.genai"]
     del sys.modules["google"]
+    del os.environ["GOOGLE_API_KEY"]
