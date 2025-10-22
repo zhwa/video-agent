@@ -24,6 +24,7 @@ python -m agent.cli examples/sample_lecture.md --full-pipeline --out workspace/o
 ##  Key Features
 
 - Multi-provider support (OpenAI, Vertex AI, ElevenLabs, etc.)
+- Robust JSON parsing with `json_repair` library for LLM outputs
 - Intelligent caching with 60%+ speedup
 - Checkpoint/resume for interrupted runs
 - Parallel processing support

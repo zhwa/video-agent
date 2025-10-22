@@ -7,8 +7,9 @@ import re
 import time
 from typing import Any, Callable, Dict, List, Optional
 
+import json_repair
+
 from .adapters.schema import validate_slide_plan
-from .adapters.json_utils import extract_json_from_text
 from .prompts import build_prompt
 from .adapters.llm import LLMAdapter
 from .monitoring import record_timing, increment, get_logger
@@ -96,8 +97,33 @@ class LLMClient:
                 logger.warning("Unexpected error archiving attempts: %s", e)
 
     def _parse_json(self, text: Any) -> Optional[Dict[str, Any]]:
-        """Parse JSON from text using the shared utility."""
-        return extract_json_from_text(text)
+        """Parse JSON from text using json_repair library.
+        
+        Handles malformed JSON commonly produced by LLMs (missing quotes,
+        trailing commas, incomplete structures, etc.)
+        """
+        # If already a dict, return as-is
+        if isinstance(text, dict):
+            logger.debug("Input is already a dict")
+            return text
+
+        # If not a string, can't parse JSON
+        if not isinstance(text, str):
+            logger.debug("Input is not a string or dict, cannot parse JSON")
+            return None
+
+        # Use json_repair to handle malformed JSON
+        try:
+            parsed = json_repair.loads(text)
+            if isinstance(parsed, dict):
+                logger.debug("Successfully parsed JSON with json_repair")
+                return parsed
+            else:
+                logger.debug("Parsed result is not a dict: %s", type(parsed))
+                return None
+        except Exception as e:
+            logger.debug("json_repair parsing failed: %s", e)
+            return None
 
     def generate_and_validate(self, adapter: LLMAdapter, chapter_text: str, max_slides: Optional[int] = None, run_id: Optional[str] = None, chapter_id: Optional[str] = None) -> Dict[str, Any]:
         """Generate slide plan using adapter and validate; attempts repairs when invalid.

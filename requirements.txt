@@ -1,6 +1,7 @@
 # Basic dependencies for Milestone 1 (ingest + segmentation + tests)
 PyYAML>=6.0
 pytest>=7.0
+json-repair>=0.39.0  # For robust JSON parsing from LLM outputs
 
 # Core dependencies for video composition (MVP)
 PyMuPDF>=1.26.5

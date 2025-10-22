@@ -6,7 +6,6 @@ import re
 from typing import Dict, Any
 
 from .llm import LLMAdapter, DummyLLMAdapter
-from .json_utils import extract_json_from_text
 
 
 class VertexLLMAdapter(LLMAdapter):

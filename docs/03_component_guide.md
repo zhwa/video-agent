@@ -112,7 +112,7 @@ ChapterScript(
 **Key Responsibilities**:
 - Retry failed requests with exponential backoff
 - Validate LLM output format
-- Parse JSON responses
+- Parse JSON responses using `json_repair` library
 - Handle rate limiting
 
 **Main Classes**:
@@ -122,6 +122,12 @@ class LLMClient:
     def call_with_retry(prompt: str, max_retries: int) -> str
     def validate_json_response(response: str) -> dict
 ```
+
+**JSON Parsing**:
+- Uses `json_repair` library to handle malformed JSON from LLMs
+- Automatically fixes common errors (missing quotes, trailing commas, etc.)
+- Significantly reduces retry attempts due to parse failures
+- See `docs/JSON_PARSING_IMPROVEMENTS.md` for details
 
 **Retry Strategy**:
 - Exponential backoff: 1s, 2s, 4s, 8s, etc.
