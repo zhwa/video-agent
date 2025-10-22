@@ -36,13 +36,12 @@ pip install -r requirements.txt
 ```
 
 **Main dependencies**:
-- `langchain` - LLM orchestration
+- `langgraph` - Workflow orchestration
 - `pydantic` - Data validation
 - `pyyaml` - Configuration
 - `pytest` - Testing
-- `google-cloud-texttospeech` - TTS (optional)
-- `openai` - OpenAI API (optional)
-- `elevenlabs` - ElevenLabs API (optional)
+- `google-genai` - Google Gemini & Imagen APIs
+- `google-cloud-texttospeech` - Google Cloud TTS
 - `moviepy` - Video composition (optional, for full pipeline)
 
 ---
@@ -65,29 +64,23 @@ python -m agent.cli examples/sample_lecture.md --full-pipeline --out workspace/o
 
 **Duration**: ~30-60 seconds
 
-### Example 2: With OpenAI Provider
+### Example 2: With Google API Key
 
 ```bash
 # Set up environment
-export LLM_PROVIDER=openai
-export OPENAI_API_KEY=sk-...
+export GOOGLE_API_KEY=your-api-key-here
 
 # Run pipeline
 python -m agent.cli examples/sample_lecture.md --full-pipeline --out workspace/out
 ```
 
-### Example 3: With Vertex AI
+**What happens**:
+1. Uses Google Gemini for LLM slide generation
+2. Uses Google Cloud TTS for audio synthesis
+3. Uses Google Imagen 3.0 for image generation
+4. Creates professional videos with all real content
 
-```bash
-# Set up environment
-export LLM_PROVIDER=vertex
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
-
-# Run pipeline
-python -m agent.cli examples/sample_lecture.md --full-pipeline --out workspace/out
-```
-
-### Example 4: Resume Interrupted Run
+### Example 3: Resume Interrupted Run
 
 ```bash
 # If run was interrupted, get the run_id from workspace/runs/
@@ -111,7 +104,6 @@ python -m agent.cli INPUT_FILE [OPTIONS]
 ```bash
 --full-pipeline              # Run complete pipeline (recommended)
 --out DIR                   # Output directory (default: workspace/out)
---provider PROVIDER         # LLM provider: vertex|openai (default: vertex)
 ```
 
 ### Pipeline Control
@@ -151,49 +143,17 @@ python -m agent.cli INPUT_FILE [OPTIONS]
 
 ## Environment Variables
 
-### LLM Configuration
+### Google API Configuration
 
 ```bash
-# Which LLM provider to use
-LLM_PROVIDER=vertex|openai|dummy
-LLM_MAX_RETRIES=3
+# Google API Key (required for real content generation)
+GOOGLE_API_KEY=your-api-key-here
 
-# For OpenAI
-OPENAI_API_KEY=sk-...
-
-# For Vertex AI
+# Optional: Google Cloud credentials for TTS
 GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
-GOOGLE_PROJECT_ID=your-project-id
-```
 
-### TTS Configuration
-
-```bash
-TTS_PROVIDER=google|elevenlabs|dummy
-ELEVENLABS_API_KEY=...
-```
-
-### Image Configuration
-
-```bash
-IMAGE_PROVIDER=stability|replicate|dummy
-STABILITY_API_KEY=...
-REPLICATE_API_TOKEN=...
-```
-
-### Storage Configuration
-
-```bash
-STORAGE_PROVIDER=gcs|minio|none
-
-# For GCS
-GCS_BUCKET=your-bucket
-GCS_PROJECT_ID=your-project
-
-# For MinIO
-MINIO_ENDPOINT=minio.example.com:9000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin
+# LLM Configuration
+LLM_MAX_RETRIES=3
 ```
 
 ### Processing Configuration
@@ -213,33 +173,28 @@ RUNS_DIR=workspace/runs
 
 ### YAML Configuration (Optional)
 
-Create `config/providers.yaml`:
+Create `config/settings.yaml`:
 
 ```yaml
-llm:
-  provider: vertex
+google:
+  api_key: ${GOOGLE_API_KEY}  # Use environment variable
   max_retries: 3
   timeout: 30
-
-tts:
-  provider: google
-  
-image:
-  provider: stability
-  
-storage:
-  provider: gcs
-  bucket: my-bucket
 
 processing:
   max_workers: 4
   max_slide_workers: 2
   cache_enabled: true
+  cache_dir: workspace/cache
+  
+output:
+  video_format: mp4
+  transition_duration: 0.0
 ```
 
 Then run:
 ```bash
-python -m agent.cli input.md --config config/providers.yaml --full-pipeline
+python -m agent.cli input.md --config config/settings.yaml --full-pipeline
 ```
 
 ---
@@ -253,16 +208,13 @@ python -m agent.cli input.md --config config/providers.yaml --full-pipeline
 python -m agent.cli lesson.md --full-pipeline --out output/
 ```
 
-### Workflow 2: Production (Real Providers)
+### Workflow 2: Production (Google Services)
 
 ```bash
 # Set up environment
-export LLM_PROVIDER=openai
-export OPENAI_API_KEY=sk-...
-export TTS_PROVIDER=google
-export IMAGE_PROVIDER=stability
+export GOOGLE_API_KEY=your-api-key-here
 
-# Run pipeline
+# Run pipeline with parallelization
 python -m agent.cli lesson.md --full-pipeline --out output/ --max-workers 4
 ```
 
@@ -271,8 +223,7 @@ python -m agent.cli lesson.md --full-pipeline --out output/ --max-workers 4
 ```bash
 # Process multiple files with parallel chapter processing
 export MAX_WORKERS=8
-export STORAGE_PROVIDER=gcs
-export GCS_BUCKET=my-bucket
+export GOOGLE_API_KEY=your-api-key-here
 
 for file in lectures/*.md; do
     python -m agent.cli "$file" --full-pipeline --out workspace/out/
@@ -302,12 +253,12 @@ pip install moviepy
 python -m agent.cli input.md --out output/  # Skip --full-pipeline
 ```
 
-### Issue: "OpenAI API key not found"
+### Issue: "Google API key not found"
 
 **Solution**: Set environment variable
 ```bash
-export OPENAI_API_KEY=sk-...
-python -m agent.cli input.md --provider openai --full-pipeline --out output/
+export GOOGLE_API_KEY=your-api-key-here
+python -m agent.cli input.md --full-pipeline --out output/
 ```
 
 ### Issue: "No chapters detected in document"
@@ -335,12 +286,14 @@ export SLIDE_RATE_LIMIT=5  # Max 5 calls/second
 python -m agent.cli input.md --full-pipeline --max-slide-workers 1 --out output/
 ```
 
-### Issue: "Vertex AI credentials not found"
+### Issue: "Failed to generate content"
 
-**Solution**: Set up authentication
+**Solution**: Verify API key is valid
 ```bash
-gcloud auth application-default login
-python -m agent.cli input.md --provider vertex --full-pipeline --out output/
+# Test API key
+python -c "import os; from agent.google import GoogleServices; gs = GoogleServices(); print('API key valid!')"
+
+# Check API quotas in Google Cloud Console
 ```
 
 ---
@@ -379,7 +332,7 @@ workspace/
 
 1. **Run the dummy pipeline**: `python -m agent.cli examples/sample_lecture.md --full-pipeline --out workspace/out`
 2. **Check the output**: Look in `workspace/out/` for results
-3. **Set up real providers**: Add API keys and run with `--provider openai` or similar
+3. **Set up Google API**: Get API key from Google AI Studio and set `GOOGLE_API_KEY`
 4. **Read Component Guide**: See Chapter 3 for detailed component documentation
 5. **Configure for production**: See Chapter 4 for deployment guidance
 

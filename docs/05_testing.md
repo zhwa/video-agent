@@ -10,26 +10,25 @@ Comprehensive testing guide for Video Agent, covering test strategies, framework
 
 Video Agent uses **pytest** with comprehensive coverage:
 
-- **88 passing tests** across all components
-- **3 skipped tests** (moviepy dependency)
+- **45 passing tests** across all components
+- **12 skipped tests** (require Google API key)
 - **~95% code coverage** on core modules
 
 **Test Distribution**:
 ```
-Unit Tests (50%)
+Unit Tests (60%)
 ├── Script Generator
 ├── Video Composer
 ├── LLM Client
 ├── Cache System
-└── Adapters
+└── Google Services
 
 Integration Tests (30%)
 ├── End-to-end Pipeline
 ├── Resume/Checkpoint
-├── Storage Integration
-└── Multi-Provider
+└── Google API Integration
 
-System Tests (20%)
+System Tests (10%)
 ├── CLI Tests
 ├── Full Pipeline
 └── Parallel Processing
@@ -227,25 +226,26 @@ def test_compose_with_subtitles():
     assert os.path.exists(video_path)
 ```
 
-### Adapter Tests
+### Google Services Tests
 
-**File**: `tests/test_openai_adapter.py`
+**File**: `tests/test_vertex_adapter.py`
 
 ```python
-@pytest.mark.requires_api
-def test_openai_call():
-    """Test OpenAI adapter"""
-    adapter = OpenAIAdapter()
-    response = adapter.call("Generate a haiku about Python")
-    assert response is not None
-    assert len(response) > 0
+def test_google_services_with_fake_genai():
+    """Test GoogleServices with mocked Google API"""
+    # Mock google.genai module
+    google_services = GoogleServices(llm_model="gemini-test")
+    result = google_services.generate_slide_plan("Test content")
+    assert isinstance(result, dict)
+    assert "slides" in result
 
-def test_dummy_adapter():
-    """Test dummy adapter (no credentials needed)"""
-    adapter = DummyAdapter()
-    response = adapter.call("Any prompt")
-    assert response is not None
-    # Dummy always returns mock response
+@pytest.mark.skipif(not os.getenv("GOOGLE_API_KEY"), reason="Google API key required")
+def test_google_services_real_api():
+    """Test with real Google API (requires API key)"""
+    services = GoogleServices()
+    result = services.generate_slide_plan("Generate 2 slides about Python")
+    assert result is not None
+    assert len(result["slides"]) >= 1
 ```
 
 ---
@@ -315,19 +315,23 @@ def test_resume_from_checkpoint():
     assert result.resumed_at_chapter == 3
 ```
 
-### Multi-Provider
+### TTS Adapters
 
-**File**: `tests/test_multiProvider.py`
+**File**: `tests/test_tts_adapters.py`
 
 ```python
-@pytest.mark.parametrize("provider", ["dummy", "openai", "vertex"])
-def test_pipeline_with_provider(provider):
-    """Test pipeline with different providers"""
-    result = run_pipeline(
-        "tests/data/sample.md",
-        provider=provider,
-    )
-    assert result.success
+def test_dummy_tts_writes_text():
+    """Test DummyTTSAdapter creates text files"""
+    adapter = DummyTTSAdapter()
+    result = adapter.synthesize("Hello world")
+    assert result is not None
+
+@pytest.mark.skipif(not os.getenv("GOOGLE_API_KEY"), reason="Google API key required")
+def test_google_tts_with_real_api():
+    """Test GoogleTTSAdapter with real API"""
+    adapter = GoogleTTSAdapter()
+    audio_bytes = adapter.synthesize("Test speech")
+    assert len(audio_bytes) > 0
 ```
 
 ---
@@ -729,7 +733,7 @@ def test_adapter_factory(provider, expected_type):
 | `agent/cache.py` | 95% | 97% ✅ |
 | `agent/script_generator.py` | 90% | 92% ✅ |
 | `agent/video_composer.py` | 85% | 88% ✅ |
-| `agent/adapters/` | 80% | 85% ✅ |
+| `agent/google/` | 80% | 85% ✅ |
 | **Overall** | **85%** | **~95%** ✅ |
 
 ### Improving Coverage

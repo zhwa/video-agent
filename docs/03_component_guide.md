@@ -26,12 +26,11 @@ def merge_workflow()    # Merges all videos
 
 **Common Usage**:
 ```bash
-python -m agent.cli input.md --full-pipeline --out output/ --provider openai
+python -m agent.cli input.md --full-pipeline --out output/
 ```
 
 **Key Flags**:
 - `--full-pipeline`: Run complete pipeline (script + compose + merge)
-- `--provider`: LLM provider (vertex, openai, dummy)
 - `--max-workers`: Parallel chapter workers
 - `--resume`: Resume from checkpoint
 
@@ -86,9 +85,9 @@ class ScriptGenerator:
 ```
 
 **Workflow**:
-1. Sends chapter to LLM for slide plan
-2. Generates image for each slide (Image adapter)
-3. Synthesizes audio for narration (TTS adapter)
+1. Sends chapter to Google Gemini for slide plan
+2. Generates image for each slide (Google Imagen)
+3. Synthesizes audio for narration (Google Cloud TTS)
 4. Returns complete script with all media
 
 **Output Structure**:
@@ -136,9 +135,12 @@ class LLMClient:
 
 **Example Usage**:
 ```python
-client = LLMClient(provider="openai")
-response = client.call_with_retry(
-    prompt="Generate 3 slides about Python",
+from agent.google import GoogleServices
+
+services = GoogleServices()
+client = LLMClient(llm_provider=services)
+response = client.generate_and_validate(
+    chapter_text="Introduction to Python",
     max_retries=3
 )
 ```
@@ -270,198 +272,150 @@ logger.error("Failed to generate image", exc_info=True)
 
 ---
 
-## Adapter System
+## Google Services Integration
 
-### Architecture
+### Architecture (`agent/google/`)
 
-The adapter system uses **Factory Pattern** to support multiple providers:
-
-```python
-class LLMAdapter:
-    def call(prompt: str) -> str  # Abstract method
-
-class OpenAIAdapter(LLMAdapter):
-    def call(prompt: str) -> str  # OpenAI implementation
-
-class VertexAdapter(LLMAdapter):
-    def call(prompt: str) -> str  # Vertex AI implementation
-
-class DummyAdapter(LLMAdapter):
-    def call(prompt: str) -> str  # Mock implementation
-```
-
-### Factory (`agent/adapters/factory.py`)
-
-**Purpose**: Creates appropriate adapter based on configuration.
+The system uses a **unified Google Services integration** for all AI capabilities:
 
 ```python
-adapter = AdapterFactory.create_llm_adapter(provider="openai")
-# Returns: OpenAIAdapter instance
+class GoogleServices:
+    """Unified Google AI services for LLM, TTS, and image generation."""
+    
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
+        self.genai_client = genai.Client(api_key=self.api_key)
+    
+    def generate_slide_plan(self, chapter_text: str) -> dict:
+        """Generate slide plan using Google Gemini."""
+        # Uses Gemini model via google-genai SDK
+        
+    def synthesize_speech(self, text: str) -> bytes:
+        """Synthesize speech using Google Cloud TTS."""
+        # Uses Cloud Text-to-Speech API
+        
+    def generate_image(self, prompt: str) -> bytes:
+        """Generate image using Google Imagen 3.0."""
+        # Uses Imagen via google-genai SDK
 ```
 
-**Graceful Fallback**:
-- If provider not available → uses DummyAdapter
-- Allows testing without credentials
-- Non-blocking failures
+**Location**: `agent/google/services.py`
 
 ---
 
-### LLM Adapters
+### GoogleServices (`agent/google/services.py`)
 
-#### OpenAI (`agent/adapters/openai_adapter.py`)
-
-**Provider**: OpenAI API (GPT-4, GPT-3.5)
+**Purpose**: Unified interface to all Google AI services
 
 **Configuration**:
 ```bash
-export OPENAI_API_KEY=sk-...
-export LLM_PROVIDER=openai
+export GOOGLE_API_KEY=your-api-key-here
 ```
 
 **Capabilities**:
-- Full LLM access
-- Structured output support
-- Function calling
-- Vision (with multimodal models)
+- **LLM**: Google Gemini (gemini-2.0-flash-exp, gemini-1.5-pro)
+- **TTS**: Google Cloud Text-to-Speech (multiple voices)
+- **Image**: Google Imagen 3.0 (fast-mode, high quality)
 
-**Cost**: ~$0.01-0.10 per slide
-
----
-
-#### Vertex AI (`agent/adapters/google_vertex_adapter.py`)
-
-**Provider**: Google Cloud Vertex AI (PaLM, Gemini)
-
-**Configuration**:
-```bash
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
-export LLM_PROVIDER=vertex
-```
-
-**Capabilities**:
-- Multimodal models
-- Low latency
-- Enterprise security
-
-**Cost**: ~$0.001-0.01 per slide
-
----
-
-#### Dummy (`agent/adapters/`)
-
-**Provider**: Mock/test implementation (no credentials needed)
-
-**Features**:
-- Instant response
-- Deterministic output
-- Perfect for testing/development
+**Cost** (approximate):
+- Gemini: ~$0.001-0.01 per slide
+- Cloud TTS: ~$0.000004 per character
+- Imagen: ~$0.01-0.04 per image
 
 **Usage**:
-```bash
-# Automatically used when provider unavailable
-python -m agent.cli input.md --full-pipeline
+```python
+from agent.google import GoogleServices
+
+services = GoogleServices()
+slides = services.generate_slide_plan("Chapter about Python")
+audio = services.synthesize_speech("Hello world")
+image = services.generate_image("A python snake coding")
 ```
 
 ---
 
-### TTS Adapters
+### TTS Adapters (`agent/google/tts.py`)
 
-#### Google Cloud TTS (`agent/adapters/`)
-
-**Provider**: Google Cloud Text-to-Speech
+**GoogleTTSAdapter**: Production Google Cloud TTS integration
 
 **Configuration**:
 ```bash
-export TTS_PROVIDER=google
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
-```
-
-**Output**: High-quality audio (MP3/WAV)
-
-**Cost**: ~$0.000004 per character
-
----
-
-#### ElevenLabs (`agent/adapters/elevenlabs_tts.py`)
-
-**Provider**: ElevenLabs API
-
-**Configuration**:
-```bash
-export TTS_PROVIDER=elevenlabs
-export ELEVENLABS_API_KEY=...
+export GOOGLE_API_KEY=your-api-key-here
+# Optional: GOOGLE_APPLICATION_CREDENTIALS for service account
 ```
 
 **Features**:
-- Natural-sounding voice
-- Multiple voice options
-- Emotional control
+- High-quality neural voices
+- Multiple languages
+- SSML support
+- Cached results
 
-**Cost**: ~$0.30 per 10K characters
+**DummyTTSAdapter**: Testing/development fallback
+
+**Features**:
+- No API calls
+- Instant response
+- Fixed-duration mock audio
+- Perfect for development
+
+**Usage**:
+```python
+from agent.google import get_tts_adapter
+
+adapter = get_tts_adapter()  # Returns GoogleTTSAdapter or DummyTTSAdapter
+audio_bytes = adapter.synthesize("Hello world")
+```
 
 ---
 
-### Image Adapters
+### Image Adapters (`agent/google/image.py`)
 
-#### Stability AI (`agent/adapters/stability_adapter.py`)
+**DummyImageAdapter**: Testing/development implementation
 
-**Provider**: Stability AI (SDXL)
+**Purpose**: Generate placeholder images without API calls
 
-**Configuration**:
-```bash
-export IMAGE_PROVIDER=stability
-export STABILITY_API_KEY=...
+**Features**:
+- Instant generation
+- Text-based placeholders
+- No cost
+- Ideal for testing
+
+**Usage**:
+```python
+from agent.google.image import DummyImageAdapter
+
+adapter = DummyImageAdapter()
+image_bytes = adapter.generate("A beautiful landscape")
 ```
 
-**Output**: High-quality images (512x512 to 2048x2048)
-
-**Cost**: ~$0.02 per image
+**Note**: Production image generation uses `GoogleServices.generate_image()` method directly via Imagen 3.0.
 
 ---
 
-#### Replicate (`agent/adapters/replicate_adapter.py`)
+### Storage (`agent/google/storage.py`)
 
-**Provider**: Replicate API
+**DummyStorageAdapter**: Local file storage implementation
 
-**Configuration**:
-```bash
-export IMAGE_PROVIDER=replicate
-export REPLICATE_API_TOKEN=...
+**Purpose**: Store artifacts locally with `file://` URLs
+
+**Features**:
+- Local filesystem storage
+- No cloud dependencies
+- Simple upload/download
+- Perfect for development
+
+**Configuration**: No configuration needed (uses local paths)
+
+**Usage**:
+```python
+from agent.google import get_storage_adapter
+
+storage = get_storage_adapter()
+url = storage.upload_file("/path/to/file.mp4")  # Returns: file:///path/to/file.mp4
+local_path = storage.download_file(url)
 ```
 
-**Models**: SDXL, Stable Diffusion, etc.
-
-**Cost**: ~$0.001-0.01 per image (model dependent)
-
----
-
-### Storage Adapters
-
-#### Google Cloud Storage (`agent/storage/gcs_adapter.py`)
-
-**Purpose**: Store generated artifacts in GCS bucket
-
-**Configuration**:
-```bash
-export STORAGE_PROVIDER=gcs
-export GCS_BUCKET=my-bucket
-```
-
-**Usage**: Automatic artifact upload after generation
-
----
-
-#### MinIO (`agent/storage/minio_adapter.py`)
-
-**Purpose**: S3-compatible storage (MinIO, AWS S3, DigitalOcean Spaces)
-
-**Configuration**:
-```bash
-export STORAGE_PROVIDER=minio
-export MINIO_ENDPOINT=minio.example.com:9000
-export MINIO_ACCESS_KEY=minioadmin
-export MINIO_SECRET_KEY=minioadmin
-```
+**Production**: For production use, integrate Cloud Storage SDK directly as needed
 
 ---
 
@@ -611,45 +565,45 @@ python -m agent.cli input.md --full-pipeline  # Second run: 30 sec
 
 ---
 
-## Adding Custom Components
+## Extending the System
 
-### Adding a New LLM Provider
+### Adding Custom Processing
 
-1. Create `agent/adapters/my_provider_adapter.py`:
+While the system is Google-centric, you can extend functionality:
+
+**Option 1: Extend GoogleServices class**
 ```python
-from agent.adapters.llm import LLMAdapter
-
-class MyProviderAdapter(LLMAdapter):
-    def call(self, prompt: str) -> str:
-        # Your implementation
+# agent/google/services.py
+class GoogleServices:
+    def custom_processing(self, data):
+        # Add custom logic here
         pass
 ```
 
-2. Register in factory (`agent/adapters/factory.py`):
+**Option 2: Create custom pipeline nodes**
 ```python
-if provider == "my_provider":
-    return MyProviderAdapter()
+# agent/langgraph_nodes.py
+def custom_node(state: dict) -> dict:
+    # Process state
+    return updated_state
 ```
 
-3. Set environment variable:
-```bash
-export LLM_PROVIDER=my_provider
-```
-
-### Adding a New Storage Backend
-
-1. Create `agent/storage/my_storage_adapter.py`:
+**Option 3: Add post-processing hooks**
 ```python
-from agent.storage.schema import StorageAdapter
-
-class MyStorageAdapter(StorageAdapter):
-    def upload(self, local_path: str) -> str:
-        # Your implementation
-        pass
+# agent/video_composer.py
+def add_custom_effects(video_path: str):
+    # Add custom video effects
+    pass
 ```
 
-2. Register in factory
-3. Set environment variable
+### Integration with Other Services
+
+If you need to integrate non-Google services:
+
+1. Create adapter in `agent/google/` directory
+2. Follow existing patterns (DummyTTSAdapter, DummyImageAdapter)
+3. Add factory function like `get_tts_adapter()`
+4. Update configuration in environment variables
 
 ---
 

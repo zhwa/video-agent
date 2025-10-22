@@ -73,29 +73,29 @@ Defines the five pipeline stages as graph nodes.
 - **Composition**: Create per-chapter videos
 - **Merge**: Combine videos into final output
 
-### 3. **Adapter System** (`agent/adapters/`)
-Pluggable provider system for LLM, TTS, and image generation.
+### 3. **Google Services** (`agent/google/`)
+Unified Google AI services for LLM, TTS, and image generation.
 
-**Pattern**:
+**Architecture**:
 ```
-┌─────────────────────────────┐
-│   Adapter Base Class        │
-│  (Abstract Interface)       │
-└──────────────┬──────────────┘
-               │
-      ┌────────┴────────┐
-      │                 │
-   Provider 1      Provider 2
-  (OpenAI)        (Vertex AI)
-  (ElevenLabs)    (Google TTS)
-  (Stability)     (Replicate)
+┌─────────────────────────────────────────┐
+│        GoogleServices                   │
+│  (Unified Google AI Integration)        │
+└─────────────┬───────────────────────────┘
+              │
+    ┌─────────┴─────────┐─────────┐
+    │                   │         │
+ Gemini API      Cloud TTS    Imagen 3
+   (LLM)          (Audio)     (Images)
 ```
 
-**Supported Providers**:
-- **LLM**: OpenAI (GPT-4, GPT-3.5), Vertex AI (Gemini)
-- **TTS**: Google Cloud TTS, ElevenLabs
-- **Image**: Stability.ai, Replicate
+**Services**:
+- **LLM**: Google Gemini (via google-genai SDK)
+- **TTS**: Google Cloud Text-to-Speech
+- **Image**: Google Imagen 3.0 (via google-genai SDK)
 - **Fallback**: Dummy implementations for testing
+
+**All services integrated through single `GoogleServices` class**
 
 ### 4. **Checkpoint & Resume** (`agent/runs_checkpoint.py`)
 Enables interrupt-safe execution with per-chapter checkpointing.
@@ -114,13 +114,13 @@ Content-based artifact caching for improved performance.
 - Applies to TTS audio, generated images, and videos
 - Hash-based key generation for consistency
 
-### 6. **Storage Backends** (`agent/storage/`)
-Pluggable storage for artifact persistence.
+### 6. **Storage** (`agent/google/storage.py`)
+Local file storage for artifact persistence.
 
-**Supported**:
-- Local filesystem (default)
-- Google Cloud Storage (GCS)
-- MinIO / S3-compatible storage
+**Implementation**:
+- Local filesystem with `file://` URLs
+- Simple DummyStorageAdapter for development
+- Production: Integrate Cloud Storage SDK directly as needed
 
 ---
 
@@ -270,13 +270,13 @@ state_reducers = {
 ### Multi-Level Fallbacks
 
 ```
-1. Provider Implementation (e.g., OpenAI)
+1. Google Services API
    └─> If error: Retry with exponential backoff
    
-2. Adapter Layer (e.g., LLMAdapter)
-   └─> If error: Try fallback provider
+2. Service Level (GoogleServices class)
+   └─> If error: Log and return empty result
    
-3. Factory Level
+3. Adapter Level (TTS/Image adapters)
    └─> If error: Use Dummy adapter
    
 4. Application Level
@@ -325,9 +325,9 @@ With content-based caching:
 
 ### API Key Management
 
-- All API keys via environment variables (never hardcoded)
-- Support for Google Application Credentials
-- Per-provider authentication
+- Single `GOOGLE_API_KEY` environment variable (never hardcoded)
+- Simplified authentication with Google AI services
+- Optional: Google Application Credentials for Cloud TTS
 
 ### Data Handling
 
@@ -366,10 +366,9 @@ Queue of documents → Worker pool → Storage backend
 
 | Pattern | Location | Purpose |
 |---------|----------|---------|
-| **Adapter** | `adapters/` | Plugin provider system |
-| **Factory** | `adapters/factory.py` | Create adapters by name |
-| **State** | `graphflow_graph.py` | Graph state management |
-| **Checkpoint** | `runs_checkpoint.py` | Resumable execution |
+| **Unified Service** | `agent/google/` | Single Google AI integration |
+| **State** | `langgraph_graph.py` | Graph state management |
+| **Checkpoint** | `runs.py` | Resumable execution |
 | **Cache** | `cache.py` | Avoid recomputation |
 | **Rate Limiter** | `parallel.py` | API quota management |
 

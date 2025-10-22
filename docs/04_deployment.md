@@ -30,14 +30,12 @@ Create `.env` file in project root:
 
 ```bash
 # Local development settings
-LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-...
-TTS_PROVIDER=google
-IMAGE_PROVIDER=stability
+GOOGLE_API_KEY=your-api-key-here
 CACHE_ENABLED=true
 CACHE_DIR=workspace/cache
 RUNS_DIR=workspace/runs
 LOG_LEVEL=DEBUG
+MAX_WORKERS=4
 ```
 
 Load environment variables:
@@ -95,16 +93,11 @@ services:
   video-agent:
     build: .
     environment:
-      - LLM_PROVIDER=openai
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - TTS_PROVIDER=google
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
-      - STORAGE_PROVIDER=gcs
-      - GCS_BUCKET=${GCS_BUCKET}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - MAX_WORKERS=4
+      - CACHE_ENABLED=true
     volumes:
       - ./workspace:/app/workspace
-      - ${GOOGLE_APPLICATION_CREDENTIALS}:/app/credentials.json:ro
       - ./inputs:/app/inputs:ro
     command: >
       python -m agent.cli 
@@ -130,8 +123,7 @@ docker build -t video-agent:latest .
 
 # Run container
 docker run \
-  -e OPENAI_API_KEY=sk-... \
-  -e LLM_PROVIDER=openai \
+  -e GOOGLE_API_KEY=your-api-key-here \
   -v $(pwd)/workspace:/app/workspace \
   -v $(pwd)/inputs:/app/inputs \
   video-agent:latest \
@@ -163,7 +155,7 @@ gcloud run deploy video-agent \
   --image gcr.io/YOUR_PROJECT/video-agent \
   --memory 4Gi \
   --timeout 3600 \
-  --set-env-vars LLM_PROVIDER=vertex,STORAGE_PROVIDER=gcs,GCS_BUCKET=my-bucket \
+  --set-env-vars GOOGLE_API_KEY=${GOOGLE_API_KEY} \
   --service-account video-agent-sa@YOUR_PROJECT.iam.gserviceaccount.com
 ```
 
@@ -185,12 +177,11 @@ spec:
             memory: 4Gi
             cpu: 4
         env:
-        - name: LLM_PROVIDER
-          value: vertex
-        - name: STORAGE_PROVIDER
-          value: gcs
-        - name: GCS_BUCKET
-          value: my-bucket
+        - name: GOOGLE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: google-api-key
+              key: key
         timeoutSeconds: 3600
 ```
 
@@ -218,9 +209,7 @@ Resources:
       Handler: lambda_handler.main
       Environment:
         Variables:
-          LLM_PROVIDER: openai
-          STORAGE_PROVIDER: s3
-          S3_BUCKET: my-bucket
+          GOOGLE_API_KEY: ${GOOGLE_API_KEY}
 ```
 
 **Limitations**:
@@ -237,9 +226,8 @@ kind: ConfigMap
 metadata:
   name: video-agent-config
 data:
-  llm-provider: openai
-  storage-provider: gcs
   max-workers: "8"
+  cache-enabled: "true"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -301,28 +289,25 @@ spec:
 
 **Development**:
 ```bash
-LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-...
+GOOGLE_API_KEY=your-api-key-here
 LOG_LEVEL=DEBUG
 CACHE_ENABLED=true
+MAX_WORKERS=2
 ```
 
 **Staging**:
 ```bash
-LLM_PROVIDER=vertex
-GOOGLE_PROJECT_ID=my-project
+GOOGLE_API_KEY=your-api-key-here
 LOG_LEVEL=INFO
 CACHE_ENABLED=true
-STORAGE_PROVIDER=gcs
+MAX_WORKERS=4
 ```
 
 **Production**:
 ```bash
-LLM_PROVIDER=vertex
-GOOGLE_PROJECT_ID=my-project
+GOOGLE_API_KEY=your-api-key-here
 LOG_LEVEL=WARNING
 CACHE_ENABLED=true
-STORAGE_PROVIDER=gcs
 MAX_WORKERS=8
 SLIDE_RATE_LIMIT=10
 ```
@@ -333,11 +318,10 @@ SLIDE_RATE_LIMIT=10
 
 ```bash
 # Store secrets
-gcloud secrets create openai-api-key --data-file=- <<< $OPENAI_API_KEY
-gcloud secrets create gcs-credentials --data-file=credentials.json
+gcloud secrets create google-api-key --data-file=- <<< $GOOGLE_API_KEY
 
 # Grant access
-gcloud secrets add-iam-policy-binding openai-api-key \
+gcloud secrets add-iam-policy-binding google-api-key \
   --member=serviceAccount:video-agent@YOUR_PROJECT.iam.gserviceaccount.com \
   --role=roles/secretmanager.secretAccessor
 ```
@@ -345,10 +329,10 @@ gcloud secrets add-iam-policy-binding openai-api-key \
 **Reference in deployment**:
 ```yaml
 env:
-- name: OPENAI_API_KEY
+- name: GOOGLE_API_KEY
   valueFrom:
     secretKeyRef:
-      name: openai-api-key
+      name: google-api-key
       key: secret
 ```
 
@@ -361,23 +345,11 @@ deployment:
   environment: production
   region: us-central1
   
-llm:
-  provider: vertex
-  model: gemini-pro
+google:
+  api_key: ${GOOGLE_API_KEY}
+  model: gemini-2.0-flash-exp
   max_retries: 3
   timeout: 30
-
-tts:
-  provider: google
-  voice: en-US-Neural2-C
-
-image:
-  provider: stability
-  model: sdxl
-
-storage:
-  provider: gcs
-  bucket: my-bucket
   
 processing:
   max_workers: 8
@@ -507,19 +479,25 @@ client.create_time_series(name=project_name, time_series=[series])
 - Process multiple videos overnight
 - Use cheaper off-peak pricing
 
-**Strategy 3: Provider Selection**
-- Vertex AI (~$0.001/slide) vs OpenAI (~$0.01/slide)
-- 10x cost difference for same quality
+**Strategy 3: Monitor API Usage**
+- Track Google API quotas in Cloud Console
+- Set up billing alerts
+- Use caching to minimize repeated calls
 
 **Example Cost Breakdown** (100-slide video):
 
-| Provider | Cost | Notes |
+| Service | Cost | Notes |
 |----------|------|-------|
-| Vertex AI LLM | $0.10 | $0.001/slide |
-| Google TTS | $0.01 | Audio synthesis |
-| Stability Image | $2.00 | $0.02/slide × 100 |
-| Storage (GCS) | $0.005 | 100MB × $0.020/GB/month |
-| **Total** | **$2.11** | Per video |
+| Google Gemini LLM | $0.10 | $0.001/slide × 100 |
+| Google Cloud TTS | $0.01 | $0.0001/slide × 100 |
+| Google Imagen 3 | $1.00 | $0.01/image × 100 (fast mode) |
+| Storage (Local) | $0.00 | Local file storage |
+| **Total** | **$1.11** | Per video |
+
+**Note**: Costs are approximate and vary based on:
+- Model selection (gemini-2.0-flash-exp vs gemini-1.5-pro)
+- Image quality (fast mode vs high quality)
+- Content length and complexity
 
 ---
 
@@ -689,15 +667,15 @@ gcloud run deploy video-agent --timeout 3600
 
 ## Performance Checklist
 
-- [ ] Use Vertex AI for 10x cost savings
+- [ ] Set up Google API key with appropriate quotas
 - [ ] Enable caching for repeated content
 - [ ] Set appropriate `--max-workers` for machine
-- [ ] Use Cloud Storage for artifacts
-- [ ] Monitor logs in Cloud Logging
+- [ ] Monitor API usage in Google Cloud Console
+- [ ] Set up billing alerts
+- [ ] Monitor logs in Cloud Logging (if deployed to GCP)
 - [ ] Set up alerts for failures
 - [ ] Backup runs/cache regularly
 - [ ] Test resume functionality
-- [ ] Document custom adapters
 - [ ] Plan for disaster recovery
 
 ---
