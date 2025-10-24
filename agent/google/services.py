@@ -25,7 +25,7 @@ import logging
 import os
 import time
 from typing import Dict, Any, Optional
-
+from google import genai
 from ..cache import FileCache, compute_cache_key
 
 logger = logging.getLogger(__name__)
@@ -59,9 +59,7 @@ class GoogleServices:
             tts_cache_enabled: Whether to enable TTS caching (default: True)
         """
         try:
-            from google import genai
             self.genai = genai
-
             # Initialize client with API key from environment
             api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_GENAI_API_KEY")
             if not api_key:

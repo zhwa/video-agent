@@ -1,14 +1,9 @@
 from __future__ import annotations
-
 import json
-import logging
 import os
-import re
 import time
-from typing import Any, Callable, Dict, List, Optional, Protocol
-
 import json_repair
-
+from typing import Any, Optional, Protocol
 from .google.schema import validate_slide_plan
 from .prompts import build_prompt
 from .monitoring import record_timing, increment, get_logger
@@ -52,7 +47,7 @@ class LLMClient:
 
             self.out_dir = tempfile.mkdtemp(prefix="llm_attempts_")
 
-    def _write_attempt(self, run_id: str, chapter_id: str, attempt_no: int, prompt: str, response: Any, validation: Dict[str, Any]):
+    def _write_attempt(self, run_id: str, chapter_id: str, attempt_no: int, prompt: str, response: Any, validation: dict[str, Any]):
         if not self.out_dir:
             return
         base = os.path.join(self.out_dir, run_id or "run", chapter_id or "chapter")
@@ -103,7 +98,7 @@ class LLMClient:
             except Exception as e:
                 logger.warning("Unexpected error archiving attempts: %s", e)
 
-    def _parse_json(self, text: Any) -> Optional[Dict[str, Any]]:
+    def _parse_json(self, text: Any) -> Optional[dict[str, Any]]:
         """Parse JSON from text using json_repair library.
         
         Handles malformed JSON commonly produced by LLMs (missing quotes,
@@ -132,7 +127,7 @@ class LLMClient:
             logger.debug("json_repair parsing failed: %s", e)
             return None
 
-    def generate_and_validate(self, provider: LLMProvider, chapter_text: str, max_slides: Optional[int] = None, run_id: Optional[str] = None, chapter_id: Optional[str] = None) -> Dict[str, Any]:
+    def generate_and_validate(self, provider: LLMProvider, chapter_text: str, max_slides: Optional[int] = None, run_id: Optional[str] = None, chapter_id: Optional[str] = None) -> dict[str, Any]:
         """Generate slide plan using provider and validate; attempts repairs when invalid.
 
         Returns the (possibly repaired) parsed plan and metadata about attempts.
@@ -146,8 +141,7 @@ class LLMClient:
         """
         attempt = 1
         prompt = build_prompt(chapter_text, max_slides=max_slides)
-        last_response = None
-        attempts_info: List[Dict[str, Any]] = []
+        attempts_info: list[dict[str, Any]] = []
 
         while attempt <= self.max_retries:
             # call provider

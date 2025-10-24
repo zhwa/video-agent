@@ -334,64 +334,6 @@ image = services.generate_image("A python snake coding")
 
 ---
 
-### TTS Adapters (`agent/google/tts.py`)
-
-**GoogleTTSAdapter**: Production Google Cloud TTS integration
-
-**Configuration**:
-```bash
-export GOOGLE_API_KEY=your-api-key-here
-# Optional: GOOGLE_APPLICATION_CREDENTIALS for service account
-```
-
-**Features**:
-- High-quality neural voices
-- Multiple languages
-- SSML support
-- Cached results
-
-**DummyTTSAdapter**: Testing/development fallback
-
-**Features**:
-- No API calls
-- Instant response
-- Fixed-duration mock audio
-- Perfect for development
-
-**Usage**:
-```python
-from agent.google import get_tts_adapter
-
-adapter = get_tts_adapter()  # Returns GoogleTTSAdapter or DummyTTSAdapter
-audio_bytes = adapter.synthesize("Hello world")
-```
-
----
-
-### Image Adapters (`agent/google/image.py`)
-
-**DummyImageAdapter**: Testing/development implementation
-
-**Purpose**: Generate placeholder images without API calls
-
-**Features**:
-- Instant generation
-- Text-based placeholders
-- No cost
-- Ideal for testing
-
-**Usage**:
-```python
-from agent.google.image import DummyImageAdapter
-
-adapter = DummyImageAdapter()
-image_bytes = adapter.generate("A beautiful landscape")
-```
-
-**Note**: Production image generation uses `GoogleServices.generate_image()` method directly via Imagen 3.0.
-
----
-
 ### Storage (`agent/google/storage.py`)
 
 **DummyStorageAdapter**: Local file storage implementation
@@ -600,9 +542,9 @@ def add_custom_effects(video_path: str):
 
 If you need to integrate non-Google services:
 
-1. Create adapter in `agent/google/` directory
-2. Follow existing patterns (DummyTTSAdapter, DummyImageAdapter)
-3. Add factory function like `get_tts_adapter()`
+1. Create custom logic in `agent/google/` directory
+2. Extend GoogleServices class or create helper functions
+3. Follow existing patterns (simple, direct implementations)
 4. Update configuration in environment variables
 
 ---

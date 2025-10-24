@@ -1,22 +1,22 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
-
-REQUIRED_SLIDE_KEYS = [
+# Tuple maintains deterministic order (important for consistent LLM prompts)
+# while being immutable and semantically correct for fixed required fields
+REQUIRED_SLIDE_KEYS: tuple[str, ...] = (
     "id",
     "title",
     "bullets",
     "visual_prompt",
     "estimated_duration_sec",
     "speaker_notes",
-]
+)
 
-
-def validate_slide_plan(plan: Any) -> Tuple[bool, List[str]]:
+def validate_slide_plan(plan: dict[str, Any]) -> tuple[bool, list[str]]:
     """Validate the structure of a slide plan using simple structural checks.
 
     Returns (True, []) if valid, otherwise (False, [error messages]).
     """
-    errors: List[str] = []
+    errors: list[str] = []
     if not isinstance(plan, dict):
         errors.append("Plan must be a JSON object/dict.")
         return False, errors

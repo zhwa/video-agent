@@ -315,23 +315,28 @@ def test_resume_from_checkpoint():
     assert result.resumed_at_chapter == 3
 ```
 
-### TTS Adapters
+### Google Services TTS Tests
 
-**File**: `tests/test_tts_adapters.py`
+**File**: `tests/test_script_generator.py`, `tests/test_pipeline_image_tts.py`
 
 ```python
-def test_dummy_tts_writes_text():
-    """Test DummyTTSAdapter creates text files"""
-    adapter = DummyTTSAdapter()
-    result = adapter.synthesize("Hello world")
-    assert result is not None
+class MockGoogleServices:
+    """Mock Google services for testing."""
+    
+    def synthesize_speech(self, text: str, out_path=None, voice=None, language=None):
+        """Mock TTS - writes text to file."""
+        os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+        with open(out_path, "w") as f:
+            f.write(text)
+        return out_path
 
 @pytest.mark.skipif(not os.getenv("GOOGLE_API_KEY"), reason="Google API key required")
-def test_google_tts_with_real_api():
-    """Test GoogleTTSAdapter with real API"""
-    adapter = GoogleTTSAdapter()
-    audio_bytes = adapter.synthesize("Test speech")
-    assert len(audio_bytes) > 0
+def test_google_tts_real_api():
+    """Test TTS with real Google API"""
+    from agent.google import GoogleServices
+    services = GoogleServices()
+    audio_path = services.synthesize_speech("Test speech", out_path="test.mp3")
+    assert os.path.exists(audio_path)
 ```
 
 ---

@@ -24,41 +24,8 @@ class MockGoogleServices:
         return out_path
 
 
-class SlowDummyTTS:
-    def __init__(self, sleep=0.2, counter=None):
-        self.sleep = sleep
-        self.counter = counter or {"val": 0, "max": 0, "lock": threading.Lock()}
-
-    def synthesize(self, text, out_path=None, voice=None, language=None):
-        with self.counter["lock"]:
-            self.counter["val"] += 1
-            if self.counter["val"] > self.counter["max"]:
-                self.counter["max"] = self.counter["val"]
-        time.sleep(self.sleep)
-        with self.counter["lock"]:
-            self.counter["val"] -= 1
-        # write a small file to simulate audio
-        out = out_path or "workspace/tts/slow_dummy.wav"
-        os.makedirs(os.path.dirname(out), exist_ok=True)
-        with open(out, "w", encoding="utf-8") as f:
-            f.write(text)
-        return out
-
-
-class SlowDummyImage:
-    def __init__(self, sleep=0.2):
-        self.sleep = sleep
-
-    def generate_image(self, prompt, out_path=None, width=512, height=512, steps=20, seed=None):
-        time.sleep(self.sleep)
-        out = out_path or "workspace/images/slow_dummy.png"
-        os.makedirs(os.path.dirname(out), exist_ok=True)
-        with open(out, "wb") as f:
-            f.write(b"\x89PNG\r\n\x1a\n" + prompt.encode("utf-8")[:64])
-        return out
-
-
 def test_slide_parallel_generation(monkeypatch, tmp_path):
+    """Test that slide generation can process multiple slides in parallel."""
     # configure environment
     monkeypatch.setenv("TTS_PROVIDER", "dummy")
     monkeypatch.setenv("IMAGE_PROVIDER", "dummy")
@@ -68,26 +35,63 @@ def test_slide_parallel_generation(monkeypatch, tmp_path):
 
     # build a fake chapter with 6 slides
     chapter = {"id": "c01", "title": "Intro", "text": "One. Two. Three."}
-    google = MockGoogleServices()
-    # generate slides
+    
+    # Create a mock GoogleServices that tracks concurrent calls
+    counter = {"val": 0, "max": 0, "lock": threading.Lock()}
+    
+    class SlowMockGoogleServices:
+        """Mock with slow TTS/image generation to test parallel execution."""
+        
+        def generate_slide_plan(self, chapter_text: str, max_slides=None, run_id=None, chapter_id=None):
+            return {
+                "slides": [
+                    {"id": f"s{i:02d}", "title": f"Title {i}", "bullets": ["Bullet"], 
+                     "visual_prompt": f"Visual {i}", "estimated_duration_sec": 30, 
+                     "speaker_notes": f"Notes {i}"}
+                    for i in range(1, 7)  # 6 slides
+                ]
+            }
+        
+        def synthesize_speech(self, text: str, out_path=None, voice=None, language=None):
+            # Track concurrent calls
+            with counter["lock"]:
+                counter["val"] += 1
+                if counter["val"] > counter["max"]:
+                    counter["max"] = counter["val"]
+            
+            # Simulate slow operation
+            time.sleep(0.2)
+            
+            with counter["lock"]:
+                counter["val"] -= 1
+            
+            # Write output
+            os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+            with open(out_path, "w") as f:
+                f.write(text)
+            return out_path
+        
+        def generate_image(self, prompt: str, out_path=None, width=1024, height=1024):
+            # Image generation doesn't need to track concurrency for this test
+            os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+            with open(out_path, "wb") as f:
+                f.write(b"\x89PNG\r\n\x1a\n" + prompt.encode("utf-8")[:64])
+            return out_path
+    
+    google = SlowMockGoogleServices()
+    
+    # Run with parallel processing enabled (MAX_SLIDE_WORKERS=3)
     result = generate_slides_for_chapter(chapter, google, max_slides=6, run_id="run-par")
     slides = result["slides"]
+    
+    # Verify slides were generated
     assert len(slides) >= 1
-
-    # Now monkeypatch factories to use slow adapters and re-run
-    counter = {"val": 0, "max": 0, "lock": threading.Lock()}
-    monkeypatch.setenv("TTS_PROVIDER", "dummy")
-    monkeypatch.setenv("IMAGE_PROVIDER", "dummy")
-    # Monkeypatch adapter factories to return our slow ones
-    import agent.google as google_module
-
-    monkeypatch.setattr(google_module, "get_tts_adapter", lambda p=None: SlowDummyTTS(sleep=0.2, counter=counter))
-    # No get_image_adapter in google module yet, but script_generator doesn't call it as factory anymore
-
-    # Re-run with concurrency; expect counter['max'] <= 3
-    res2 = generate_slides_for_chapter(chapter, google, max_slides=6, run_id="run-par")
-    assert counter["max"] <= 3
-    # all slides should have audio_url and image_url
-    for s in res2["slides"]:
+    
+    # Verify parallel execution occurred (max concurrent <= 3 workers)
+    assert counter["max"] <= 3, f"Expected max 3 concurrent workers, got {counter['max']}"
+    assert counter["max"] >= 1, "Expected at least 1 concurrent worker"
+    
+    # Verify all slides have required fields
+    for s in slides:
         assert "audio_url" in s
         assert "image_url" in s

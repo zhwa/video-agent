@@ -143,8 +143,8 @@ User Input (chapter text)
     ├─> For each slide in plan:
     │   ├─ Check cache for audio/image
     │   ├─ If missing:
-    │   │   ├─ Call TTS adapter (if enabled)
-    │   │   ├─ Call Image adapter (if enabled)
+    │   │   ├─ Call GoogleServices.synthesize_speech() (if enabled)
+    │   │   ├─ Call GoogleServices.generate_image() (if enabled)
     │   │   └─ Save to cache
     │   └─ Attach URLs to slide
     ├─> Optional: Parallel execution (max N workers)
@@ -276,8 +276,8 @@ state_reducers = {
 2. Service Level (GoogleServices class)
    └─> If error: Log and return empty result
    
-3. Adapter Level (TTS/Image adapters)
-   └─> If error: Use Dummy adapter
+3. Storage Level
+   └─> If error: Use local file storage
    
 4. Application Level
    └─> If error: Log and continue with fallback data
