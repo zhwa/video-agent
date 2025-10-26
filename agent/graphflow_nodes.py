@@ -31,18 +31,6 @@ from .segmenter import segment_pages_into_chapters, segment_text_into_chapters
 logger = logging.getLogger(__name__)
 
 
-def validate_vertex_credentials() -> bool:
-    """Check if Vertex credentials are likely present.
-
-    Checks GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_API_KEY environment variables.
-    """
-    if os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
-        return True
-    if os.getenv("GOOGLE_API_KEY"):
-        return True
-    return False
-
-
 def ingest_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """GraphFlow node for document ingestion.
 

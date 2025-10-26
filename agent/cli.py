@@ -140,14 +140,15 @@ def main():
     # Create and execute the GraphFlow graph
     graph = create_video_agent_graph()
     
-    # Initialize Google services
-    google = GoogleServices()
+    # NOTE: We don't pass GoogleServices in initial_state because it contains
+    # unpicklable objects (thread locks, module references). Each node creates
+    # its own GoogleServices instance as needed.
     
     # Prepare initial state
     initial_state = prepare_graph_input(
         input_path=args.path,
         run_id=args.resume,
-        google=google,
+        google=None,  # Don't pass - nodes will create their own instances
         full_pipeline=args.full_pipeline,
         compose=args.compose,
         merge=args.merge,
