@@ -28,6 +28,10 @@ from typing import Dict, Any, Optional
 from google import genai
 from ..cache import FileCache, compute_cache_key
 
+# Load environment variables from .env file automatically
+from dotenv import load_dotenv
+load_dotenv()
+
 logger = logging.getLogger(__name__)
 
 # Default models

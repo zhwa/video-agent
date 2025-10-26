@@ -41,7 +41,7 @@ pip install -r requirements.txt
 - `pyyaml` - Configuration
 - `pytest` - Testing
 - `google-genai` - Google Gemini & Imagen APIs
-- `google-cloud-texttospeech` - Google Cloud TTS
+- `python-dotenv` - Automatic .env file loading
 - `moviepy` - Video composition (optional, for full pipeline)
 
 ---
@@ -66,19 +66,45 @@ python -m agent.cli examples/sample_lecture.md --full-pipeline --out workspace/o
 
 ### Example 2: With Google API Key
 
-```bash
-# Set up environment
-export GOOGLE_API_KEY=your-api-key-here
+**Step 1: Configure API Key (One-Time)**
 
-# Run pipeline
+Create a `.env` file in the project root:
+
+```bash
+# Copy the template
+cp .env .env.local  # Keep .env as template, use .env.local for your key
+
+# Edit .env with your API key
+notepad .env  # Windows
+# or
+nano .env     # Linux/Mac
+```
+
+Add your API key:
+```env
+GOOGLE_API_KEY=your_actual_api_key_here
+```
+
+Get your API key from [Google AI Studio](https://aistudio.google.com/apikey).
+
+**Step 2: Run Pipeline**
+
+```bash
+# No need to export - .env is loaded automatically!
 python -m agent.cli examples/sample_lecture.md --full-pipeline --out workspace/out
 ```
 
 **What happens**:
 1. Uses Google Gemini for LLM slide generation
-2. Uses Google Cloud TTS for audio synthesis
-3. Uses Google Imagen 3.0 for image generation
+2. Uses Gemini 2.5 native TTS for audio synthesis (WAV format)
+3. Uses Google Imagen 4.0 for image generation
 4. Creates professional videos with all real content
+
+**Why .env file?**
+- ✅ Automatic loading on every run
+- ✅ Persistent across terminal sessions
+- ✅ Secure (never committed to git)
+- ✅ Cross-platform (Windows, macOS, Linux)
 
 ### Example 3: Resume Interrupted Run
 
@@ -145,16 +171,26 @@ python -m agent.cli INPUT_FILE [OPTIONS]
 
 ### Google API Configuration
 
-```bash
-# Google API Key (required for real content generation)
-GOOGLE_API_KEY=your-api-key-here
+Add to your `.env` file:
 
-# Optional: Google Cloud credentials for TTS
-GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+```env
+# Required: Google API Key for Gemini, Imagen, and TTS
+GOOGLE_API_KEY=your_api_key_here
+
+# Optional: Override default models
+GOOGLE_LLM_MODEL=gemini-2.5-flash
+GOOGLE_IMAGE_MODEL=imagen-4.0-fast-generate-001
+
+# Optional: Customize TTS voice (default: Puck)
+GOOGLE_TTS_VOICE=Puck
+# Available voices: Puck, Charon, Kore, Fenrir, Aoede, etc.
+# See: https://ai.google.dev/gemini-api/docs/speech
 
 # LLM Configuration
 LLM_MAX_RETRIES=3
 ```
+
+**Note**: `.env` file is automatically loaded by `python-dotenv`. No need for `export` commands!
 
 ### Processing Configuration
 
@@ -211,8 +247,7 @@ python -m agent.cli lesson.md --full-pipeline --out output/
 ### Workflow 2: Production (Google Services)
 
 ```bash
-# Set up environment
-export GOOGLE_API_KEY=your-api-key-here
+# API key is loaded from .env automatically
 
 # Run pipeline with parallelization
 python -m agent.cli lesson.md --full-pipeline --out output/ --max-workers 4
@@ -221,10 +256,11 @@ python -m agent.cli lesson.md --full-pipeline --out output/ --max-workers 4
 ### Workflow 3: Large-Scale Processing
 
 ```bash
-# Process multiple files with parallel chapter processing
-export MAX_WORKERS=8
-export GOOGLE_API_KEY=your-api-key-here
+# Add to .env:
+# MAX_WORKERS=8
+# GOOGLE_API_KEY=your-api-key-here
 
+# Process multiple files with parallel chapter processing
 for file in lectures/*.md; do
     python -m agent.cli "$file" --full-pipeline --out workspace/out/
 done
@@ -255,10 +291,20 @@ python -m agent.cli input.md --out output/  # Skip --full-pipeline
 
 ### Issue: "Google API key not found"
 
-**Solution**: Set environment variable
+**Solution**: Create `.env` file with your API key
+
 ```bash
-export GOOGLE_API_KEY=your-api-key-here
-python -m agent.cli input.md --full-pipeline --out output/
+# Create .env file
+echo "GOOGLE_API_KEY=your_api_key_here" > .env
+
+# Or copy template and edit
+cp .env .env.local
+notepad .env  # Edit with your key
+```
+
+**Verify API key is loaded**:
+```bash
+python -c "from dotenv import load_dotenv; import os; load_dotenv(); print('API Key:', 'Found' if os.getenv('GOOGLE_API_KEY') else 'NOT FOUND')"
 ```
 
 ### Issue: "No chapters detected in document"
