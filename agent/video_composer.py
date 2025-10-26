@@ -7,6 +7,26 @@ from .google import get_storage_adapter
 from .monitoring import record_timing, increment
 import time
 
+def _file_url_to_path(url_or_path: str) -> str:
+    """Convert file:// URL to local path, handling Windows paths correctly.
+    
+    Examples:
+        file:///D:/path/file.png -> D:/path/file.png (Windows)
+        file://path/file.png -> path/file.png (Unix)
+        /path/file.png -> /path/file.png (already a path)
+    """
+    if not url_or_path:
+        return url_or_path
+    
+    if url_or_path.startswith("file://"):
+        local_path = url_or_path[len("file://"):]
+        # On Windows, file:/// produces /D:/path - remove leading slash before drive letter
+        if local_path.startswith("/") and len(local_path) > 2 and local_path[2] == ":":
+            local_path = local_path[1:]
+        return local_path
+    
+    return url_or_path
+
 def _format_srt_timestamp(seconds: float) -> str:
     # Format seconds to SRT timestamp hh:mm:ss,ms with proper rounding
     total_ms = int(round(seconds * 1000))
@@ -127,11 +147,14 @@ class VideoComposer:
             audio_path = s.get("audio_path") or s.get("audio_url") or s.get("audio")
             duration = float(s.get("estimated_duration_sec", 5))
 
+            # Convert file:// URLs to paths
+            image_path = _file_url_to_path(image_path)
+            audio_path = _file_url_to_path(audio_path)
+
             # Create an image clip of the given duration
             # If audio file exists, use its duration for the slide duration (prefer audio length)
-            if audio_path and os.path.exists(audio_path.replace("file://", "")):
-                audio_file = audio_path.replace("file://", "")
-                audio_clip = AudioFileClip(audio_file)
+            if audio_path and os.path.exists(audio_path):
+                audio_clip = AudioFileClip(audio_path)
                 audio_duration = audio_clip.duration
                 # prefer audio duration unless estimated is longer
                 duration = max(duration, audio_duration)
@@ -139,9 +162,8 @@ class VideoComposer:
             clips.append(clip)
 
             # Load audio if exists (we'll concatenate later)
-            if audio_path and os.path.exists(audio_path.replace("file://", "")):
-                audio_file = audio_path.replace("file://", "")
-                audio_segments.append(AudioFileClip(audio_file))
+            if audio_path and os.path.exists(audio_path):
+                audio_segments.append(AudioFileClip(audio_path))
 
             # subtitle entry
             if include_subtitles:
@@ -224,7 +246,15 @@ class VideoComposer:
                 if not url:
                     continue
                 if url.startswith("file://"):
-                    s_local[key.replace("image_url", "image_path").replace("audio_url", "audio_path")] = url[len("file://"):]
+                    # Strip file:// prefix and handle Windows file:/// paths
+                    # file:///D:/path -> D:/path (Windows absolute)
+                    # file://path -> path (relative or Unix)
+                    local_path = url[len("file://"):]
+                    # On Windows, file:/// has three slashes, leaving /D:/... 
+                    # Remove leading slash if it's followed by a drive letter
+                    if local_path.startswith("/") and len(local_path) > 2 and local_path[2] == ":":
+                        local_path = local_path[1:]
+                    s_local[key.replace("image_url", "image_path").replace("audio_url", "audio_path")] = local_path
                 elif storage:
                     # download to local staging
                     local_target = os.path.join(out_dir, os.path.basename(url))
@@ -301,7 +331,7 @@ class VideoComposer:
         local_files = []
         for url in video_urls:
             if url.startswith("file://"):
-                local_files.append(url[len("file://"):])
+                local_files.append(_file_url_to_path(url))
             elif storage:
                 # download to staging
                 out_dir = os.path.dirname(out_path) or "."
