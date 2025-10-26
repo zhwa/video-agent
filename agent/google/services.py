@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 # Default models
 DEFAULT_LLM_MODEL = "gemini-2.5-flash"
-DEFAULT_IMAGE_MODEL = "imagen-3.0-generate-001"
+DEFAULT_IMAGE_MODEL = "imagen-4.0-fast-generate-001"
 
 class GoogleServices:
     """Unified Google AI services for LLM, TTS, and Image generation.
@@ -259,12 +259,12 @@ class GoogleServices:
                 if not out_path:
                     out_path = "workspace/tts/google_tts.mp3"
                 os.makedirs(os.path.dirname(out_path), exist_ok=True)
-                
+
                 # Write a minimal MP3 header (silent audio)
                 with open(out_path, "wb") as f:
                     # Minimal MP3 file (1 second of silence)
                     f.write(b"\xFF\xFB\x90\x00" + b"\x00" * 100)
-                
+
                 logger.info(f"Created silent audio placeholder: {out_path}")
                 return out_path
             else:
@@ -343,7 +343,7 @@ class GoogleServices:
                     config=genai.types.GenerateImagesConfig(
                         number_of_images=1,
                         aspect_ratio=aspect_ratio,
-                        safety_filter_level="block_only_high",
+                        safety_filter_level="block_low_and_above",
                         person_generation="allow_adult",
                     ),
                 )
@@ -436,13 +436,18 @@ class GoogleServices:
                     f"Unexpected response structure from Google Imagen: {type(generated_image)}"
                 )
 
+            # Decode Base64 if needed (Google Imagen returns Base64-encoded strings)
+            if isinstance(image_bytes, str):
+                import base64
+                image_bytes = base64.b64decode(image_bytes)
+
             # Write image to file
             with open(out_path, "wb") as f:
                 f.write(image_bytes)
 
             logger.info(f"Successfully generated image: {out_path}")
             return out_path
-            
+
         except Exception as e:
             error_msg = str(e)
             # Check if it's a model not found error or authentication error
@@ -457,7 +462,7 @@ class GoogleServices:
                     f.write(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
                            b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc"
                            b"\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82")
-                
+
                 logger.info(f"Created placeholder image: {out_path}")
                 return out_path
             else:
