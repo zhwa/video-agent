@@ -182,32 +182,34 @@ class GoogleServices:
         voice: Optional[str] = None,
         language: Optional[str] = None
     ) -> str:
-        """Synthesize speech from text using Google Cloud TTS.
+        """Synthesize speech from text using Gemini 2.5 native TTS.
 
         Args:
             text: Text to convert to speech
-            out_path: Output file path (default: auto-generated)
-            voice: Voice name (default: en-US-Wavenet-D)
-            language: Language code (default: en-US)
+            out_path: Output file path (default: auto-generated .wav file)
+            voice: Voice name (default: Puck). See Gemini TTS docs for available voices:
+                   Zephyr, Puck, Charon, Kore, Fenrir, Leda, Orus, Aoede, etc.
+            language: Language code (optional, auto-detected by Gemini)
 
         Returns:
-            Path to generated audio file (MP3 format)
+            Path to generated audio file (WAV format)
 
         Note:
             This method uses caching to avoid regenerating identical audio.
             Cache is keyed by text, voice, and language.
+            Uses Gemini 2.5 Flash Preview TTS model (no Cloud CLI auth needed).
         """
         # Check cache first
         cache_key = None
         if self.tts_cache and self.tts_cache.enabled:
             cache_data = {
                 "text": text,
-                "voice": voice or os.getenv("GOOGLE_TTS_VOICE") or "en-US-Wavenet-D",
-                "language": language or os.getenv("GOOGLE_TTS_LANG") or "en-US",
-                "provider": "google_tts",
+                "voice": voice or os.getenv("GOOGLE_TTS_VOICE") or "Puck",
+                "language": language or "auto",
+                "provider": "gemini_tts",
             }
             cache_key = compute_cache_key(cache_data)
-            cached_file = self.tts_cache.get(cache_key, extension=".mp3")
+            cached_file = self.tts_cache.get(cache_key, extension=".wav")
             if cached_file:
                 # Copy from cache to output path if specified
                 if out_path and out_path != cached_file:
@@ -217,85 +219,81 @@ class GoogleServices:
                     return out_path
                 return cached_file
 
-        # Not in cache - generate
-        try:
-            from google.cloud import texttospeech
-        except ImportError as e:
-            raise ImportError(
-                "google-cloud-texttospeech is required for TTS. "
-                "Install it with: pip install google-cloud-texttospeech"
-            ) from e
+        # Not in cache - generate using Gemini TTS
+        vname = voice or os.getenv("GOOGLE_TTS_VOICE") or "Puck"
 
-        try:
-            client = texttospeech.TextToSpeechClient()
-            synthesis_input = texttospeech.SynthesisInput(text=text)
-
-            # Configure voice
-            vname = voice or os.getenv("GOOGLE_TTS_VOICE") or "en-US-Wavenet-D"
-            lang = language or os.getenv("GOOGLE_TTS_LANG") or "en-US"
-            voice_params = texttospeech.VoiceSelectionParams(
-                language_code=lang,
-                name=vname
-            )
-            audio_config = texttospeech.AudioConfig(
-                audio_encoding=texttospeech.AudioEncoding.MP3
-            )
-
-            response = client.synthesize_speech(
-                input=synthesis_input,
-                voice=voice_params,
-                audio_config=audio_config
-            )
-        except Exception as e:
-            # Handle authentication errors gracefully
-            error_msg = str(e)
-            if "credentials" in error_msg.lower() or "authentication" in error_msg.lower():
-                logger.warning(
-                    f"Google Cloud TTS authentication failed: {error_msg}. "
-                    "Creating silent audio placeholder. Set up credentials with: "
-                    "gcloud auth application-default login"
-                )
-                # Create a minimal silent MP3 placeholder
-                if not out_path:
-                    out_path = "workspace/tts/google_tts.mp3"
-                os.makedirs(os.path.dirname(out_path), exist_ok=True)
-
-                # Write a minimal MP3 header (silent audio)
-                with open(out_path, "wb") as f:
-                    # Minimal MP3 file (1 second of silence)
-                    f.write(b"\xFF\xFB\x90\x00" + b"\x00" * 100)
-
-                logger.info(f"Created silent audio placeholder: {out_path}")
-                return out_path
-            else:
-                # Re-raise other errors
-                raise
-
-        # Determine output path
+        # Determine output path (change to .wav since Gemini outputs WAV)
         if not out_path:
-            out_path = "workspace/tts/google_tts.mp3"
+            out_path = "workspace/tts/gemini_tts.wav"
+        # Ensure .wav extension
+        if not out_path.endswith('.wav'):
+            out_path = out_path.rsplit('.', 1)[0] + '.wav'
+
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
 
-        # Write audio content
-        with open(out_path, "wb") as f:
-            f.write(response.audio_content)
-
-        logger.info(f"Generated speech audio: {out_path}")
-
-        # Store in cache
-        if self.tts_cache and self.tts_cache.enabled and cache_key:
-            self.tts_cache.put(
-                cache_key,
-                out_path,
-                extension=".mp3",
-                metadata={
-                    "text_length": len(text),
-                    "voice": vname,
-                    "language": lang,
-                }
+        try:
+            # Generate speech using Gemini 2.5 TTS
+            response = self.client.models.generate_content(
+                model="gemini-2.5-flash-preview-tts",
+                contents=text,
+                config=genai.types.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=genai.types.SpeechConfig(
+                        voice_config=genai.types.VoiceConfig(
+                            prebuilt_voice_config=genai.types.PrebuiltVoiceConfig(
+                                voice_name=vname,
+                            )
+                        )
+                    ),
+                )
             )
 
-        return out_path
+            # Extract audio data from response
+            audio_data = response.candidates[0].content.parts[0].inline_data.data
+
+            # Write WAV file
+            import wave
+            with wave.open(out_path, "wb") as wf:
+                wf.setnchannels(1)  # Mono
+                wf.setsampwidth(2)  # 16-bit
+                wf.setframerate(24000)  # 24kHz sample rate
+                wf.writeframes(audio_data)
+
+            logger.info(f"Generated speech audio with Gemini TTS (voice={vname}): {out_path}")
+
+            # Store in cache
+            if self.tts_cache and self.tts_cache.enabled and cache_key:
+                self.tts_cache.put(
+                    cache_key,
+                    out_path,
+                    extension=".wav",
+                    metadata={
+                        "text_length": len(text),
+                        "voice": vname,
+                        "model": "gemini-2.5-flash-preview-tts",
+                    }
+                )
+
+            return out_path
+
+        except Exception as e:
+            error_msg = str(e)
+            logger.warning(
+                f"Gemini TTS generation failed: {error_msg}. "
+                "Creating silent audio placeholder."
+            )
+
+            # Create a minimal silent WAV placeholder
+            import wave
+            with wave.open(out_path, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(24000)
+                # 1 second of silence (24000 samples * 2 bytes)
+                wf.writeframes(b"\x00" * 48000)
+
+            logger.info(f"Created silent audio placeholder: {out_path}")
+            return out_path
 
     # =========================================================================
     # Image Methods (Imagen)
