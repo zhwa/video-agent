@@ -9,6 +9,11 @@ PyMuPDF>=1.26.5
 pdfplumber>=0.11.7
 moviepy>=2.0.0
 
+# MoviePy image backend (Windows-compatible version)
+# Note: PyAV 12.3.0 is tested and compatible with moviepy 2.x on Windows
+# Newer versions (13+) have breaking changes with variable_fps attribute
+av==12.3.0
+
 # Google AI services (required for production):
 google-genai>=0.2.0  # For Gemini LLM and Imagen 3.0
 google-cloud-texttospeech>=2.14.0  # For Google Cloud TTS

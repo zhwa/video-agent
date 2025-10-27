@@ -44,6 +44,14 @@ pip install -r requirements.txt
 - `python-dotenv` - Automatic .env file loading
 - `moviepy` - Video composition (optional, for full pipeline)
 
+**For video composition** (Windows users):
+```bash
+pip install moviepy
+pip install "av==12.3.0"  # Compatible PyAV version
+```
+
+**Note**: If you encounter PyAV compatibility issues, see Troubleshooting section below.
+
 ---
 
 ## Basic Usage
@@ -279,9 +287,26 @@ python -m agent.cli lesson.md --full-pipeline --out output/ --resume run_id_abc1
 
 ### Issue: "ImportError: No module named 'moviepy'"
 
-**Solution**: Install moviepy for video composition
+**Solution**: Install moviepy and compatible image backend
 ```bash
 pip install moviepy
+pip install "av==12.3.0"  # Compatible PyAV version for Windows
+```
+
+**Note**: MoviePy requires an image backend. If you get errors like:
+- `Could not find a backend to open image with iomode 'ri'`
+- `'av.format.ContainerFormat' object has no attribute 'variable_fps'`
+
+**Fix**: Use PyAV 12.3.0 (tested and compatible with moviepy 2.x):
+```bash
+# Windows users: Use specific PyAV version
+pip install --user --force-reinstall "av==12.3.0"
+```
+
+**Alternative backends** (if PyAV doesn't work):
+```bash
+pip install imageio[opencv]  # OpenCV backend
+pip install imageio[ffmpeg]  # FFmpeg backend
 ```
 
 **Workaround**: Process up to script generation without composition
@@ -342,6 +367,94 @@ python -c "import os; from agent.google import GoogleServices; gs = GoogleServic
 # Check API quotas in Google Cloud Console
 ```
 
+### Issue: "429 RESOURCE_EXHAUSTED" or "Quota exceeded"
+
+**Problem**: You've hit your daily API quota limits
+
+**Google API Free Tier Limits** (as of 2025):
+- Gemini 2.5 Flash: 1,500 requests/day
+- Imagen 4.0 Fast: 70 requests/day ⚠️ (most limiting)
+- Gemini TTS: Varies by usage
+
+**Solutions**:
+
+1. **Wait for quota reset**: Quotas reset at midnight Pacific Time
+
+2. **Use caching to avoid re-generation**:
+   ```bash
+   # Cache is enabled by default - already generated content won't be regenerated
+   # Check cached files in workspace/cache/
+   ls workspace/cache
+   ```
+
+3. **Resume from checkpoint** (if run was interrupted):
+   ```bash
+   # Get run ID from results
+   cat workspace/out/sample_lecture_results.json | grep run_id
+   
+   # Resume from that run (skips already-generated slides)
+   python -m agent.cli input.md --resume RUN_ID --full-pipeline --out workspace/out
+   ```
+
+4. **Reduce parallelization** (to stay under rate limits):
+   ```bash
+   # Process slides sequentially
+   python -m agent.cli input.md --full-pipeline --max-slide-workers 1 --out workspace/out
+   ```
+
+5. **Upgrade quota**: Visit [Google AI Studio](https://aistudio.google.com) billing settings
+
+**Check current usage**:
+```bash
+# Visit: https://ai.dev/usage?tab=rate-limit
+# Or check error message for quota details
+```
+
+### Issue: "No such file: 'D:\D:\path\...'" (Duplicated path on Windows)
+
+**Problem**: Windows file:// URL handling issue (fixed in latest version)
+
+**Solution**: Update to latest code
+```bash
+git pull origin main
+```
+
+The fix handles Windows `file:///D:/` URLs correctly by stripping the extra leading slash.
+
+### Issue: "Invalid data found when processing input" (PNG files)
+
+**Problem**: PNG images are Base64-encoded text instead of binary (legacy issue, fixed)
+
+**Quick check**:
+```powershell
+# Check if PNG is text or binary
+$file = "workspace/out/llm_logs/your_file.png"
+$content = Get-Content $file -TotalCount 1
+if ($content -match "^iVBOR") { Write-Host "❌ Base64 text" } else { Write-Host "✅ Binary" }
+```
+
+**Solution**: Update code and regenerate images
+```bash
+git pull origin main
+# Delete old Base64 images
+rm workspace/out/llm_logs/*.png
+# Regenerate
+python -m agent.cli input.md --full-pipeline --out workspace/out
+```
+
+**Manual fix** (if you can't regenerate due to quota):
+```powershell
+# Convert Base64 PNGs to binary
+Get-ChildItem workspace\out\llm_logs -Filter "*.png" | ForEach-Object {
+    $content = Get-Content $_.FullName -Raw
+    if ($content -match "^iVBOR") {
+        $bytes = [System.Convert]::FromBase64String($content)
+        [System.IO.File]::WriteAllBytes($_.FullName, $bytes)
+        Write-Host "✅ Decoded: $($_.Name)"
+    }
+}
+```
+
 ---
 
 ## Output Structure
@@ -396,3 +509,4 @@ workspace/
 - Component reference: [Chapter 3: Component Guide](03_component_guide.md)
 - Deployment guide: [Chapter 4: Deployment](04_deployment.md)
 - Testing: [Chapter 5: Testing](05_testing.md)
+- Troubleshooting: [Chapter 6: Troubleshooting Guide](06_troubleshooting.md)
